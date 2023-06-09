@@ -8,9 +8,9 @@ This repository is the codebase of a paper "Why Using Either Aggregated Features
 + GNN for undirected graphs
   + [GCN](https://github.com/tkipf/pygcn), [SGC](https://github.com/Tiiiger/SGC), [FSGNN](https://github.com/sunilkmaurya/FSGNN), [GPRGNN](https://github.com/jianhao2016/GPRGNN), [ACMGCN](https://github.com/SitaoLuan/ACM-GNN)
 + GNN for directed graphs
-  + DGCN, DiGraph, DiGraphIB, [MagNet](https://github.com/matthew-hirn/magnet)
+  + [DGCN](https://arxiv.org/abs/2004.13970), [DiGraph](https://github.com/flyingtango/DiGCN), [DiGraphIB](https://github.com/flyingtango/DiGCN), [MagNet](https://github.com/matthew-hirn/magnet)
 + Methods using adjacency lists as node features
-  + LINK, [LINKX](https://github.com/cuai/non-homophily-large-scale), [GLOGNN++](https://github.com/recklessronan/glognn)
+  + [LINK](https://dl.acm.org/doi/10.1145/1526709.1526781), [LINKX](https://github.com/cuai/non-homophily-large-scale), [GLOGNN++](https://github.com/recklessronan/glognn)
 
 
 # Installation
@@ -40,7 +40,7 @@ For large-scale graphs (snap-patents, pokec, and wiki), you can use `--minibatch
 python src/main.py --model A2DUG --dataset pokec --minibatch
 ```
 
-The code saves the experimental results into [`experiments/`](https://github.com/seijimaekawa/A2DUG/tree/main/experiments)
+The code saves the experimental results into [`experiments/`](https://github.com/seijimaekawa/A2DUG/tree/main/experiments).
 
 ## Hyperparameters
 ### Search Space
