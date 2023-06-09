@@ -1,0 +1,9 @@
+{
+    "wd": 0,
+    "lr": 0,
+    "hidden": 0,
+    "dropout": 1,
+    "num_edge_layers": 0,
+    "num_node_layers": 0,
+    "layers": 2
+}

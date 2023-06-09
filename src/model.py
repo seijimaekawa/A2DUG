@@ -28,23 +28,20 @@ from torch_sparse import SparseTensor, matmul
 from torch_scatter import scatter_add
 
    
-class simplink(torch.nn.Module):
+class A2DUG(torch.nn.Module):
     def __init__(self, args, nlayers):
-        super(simplink, self).__init__()
+        super(A2DUG, self).__init__()
         self.num_nodes = args.num_nodes
         self.in_channels = args.num_features
         self.out_channels = args.C
         self.num_edge_layers = args.num_edge_layers
-        self.agg = args.agg
         self.wo_agg = args.wo_agg
         self.wo_mlp = args.wo_mlp
         self.wo_undirected = args.wo_undirected
         self.wo_directed = args.wo_directed
         self.wo_adj = args.wo_adj
-        self.wo_att = args.wo_att
         self.wo_transpose = args.wo_transpose
         self.nlayers = nlayers
-        self.normalization = False
         
         self.total_layers = 0
         nAGG = 0
@@ -57,10 +54,7 @@ class simplink(torch.nn.Module):
                 nAGG += 1
                 if not self.wo_transpose:
                     self.mlp_agg_di_t = MLP(self.in_channels*nlayers*2, args.hidden, args.hidden, args.num_agg_layers, dropout=0)
-                    nAGG += 1
-        # self.wt1 = nn.ModuleList([nn.Linear(self.in_channels,int(args.hidden)) for _ in range(self.total_layers)])
-        # self.wt1 = nn.ModuleList([MLP(self.in_channels, args.hidden, args.hidden, args.num_agg_layers, dropout=0) for _ in range(self.nlayers)])
-        
+                    nAGG += 1        
         nMLP=0
         if not self.wo_mlp:
             self.mlpX = MLP(self.in_channels, args.hidden, args.hidden, args.num_node_layers, dropout=0)
@@ -76,34 +70,12 @@ class simplink(torch.nn.Module):
                 if not self.wo_transpose:
                     self.mlpA_di_t = MLP(self.num_nodes, args.hidden, args.hidden, args.num_edge_layers, dropout=0)
                     nADJ += 1
-        # self.W = nn.Linear(3*args.hidden, args.hidden) # for MLP_X, MLP_A, GNN
-        if self.agg == 'concat':
-            self.mlp_final = MLP(args.hidden*(nAGG+nMLP+nADJ), args.hidden, self.out_channels, args.final_layers, dropout=args.dropout)
-        elif self.agg == 'sum':
-            self.mlp_final = MLP(args.hidden, args.hidden, self.out_channels, args.final_layers, dropout=args.dropout)
+        
+        self.mlp_final = MLP(args.hidden*(nAGG+nMLP+nADJ), args.hidden, self.out_channels, args.final_layers, dropout=args.dropout)
         self.A = None
         
-        # TEMP = np.ones(7) / 7
-        # self.att = nn.Parameter(torch.tensor(TEMP, dtype=torch.float32))        
         self.sm = nn.Softmax(dim=0)
-        self.sm_x = nn.Softmax(dim=1)
-        
-        # self.inner_activation = inner_activation
-        # self.inner_dropout = inner_dropout
-        if not self.wo_att:
-            TEMP = np.ones(nAGG+nMLP+nADJ)
-            self.att = nn.Parameter(torch.tensor(TEMP, dtype=torch.float32))
-            # self.adj_att = nn.Parameter(torch.tensor(adj_TEMP, dtype=torch.float32))
-            
-            # if not self.wo_undirected:
-            #     TEMP = np.ones(nlayers*2)
-            #     self.agg_att = nn.Parameter(torch.tensor(TEMP, dtype=torch.float32))
-            # if not self.wo_directed:
-            #     TEMP = np.ones(nlayers*2)
-            #     self.agg_di_att = nn.Parameter(torch.tensor(TEMP, dtype=torch.float32))
-            #     TEMP = np.ones(nlayers*2)
-            #     self.agg_di_t_att = nn.Parameter(torch.tensor(TEMP, dtype=torch.float32))
-            
+        self.sm_x = nn.Softmax(dim=1)            
 
     def reset_parameters(self):	
         self.mlpA.reset_parameters()	
@@ -120,6 +92,7 @@ class simplink(torch.nn.Module):
 
         out = []
         
+        ## including codes for ablation study ##
         if not self.wo_mlp:
             xX = self.mlpX(x, input_tensor=True)
             out.append(xX)
@@ -133,48 +106,26 @@ class simplink(torch.nn.Module):
                 if not self.wo_transpose:
                     xA_di_t = self.mlpA_di_t(A_di_t, input_tensor=True)
                     out.append(xA_di_t)
-        
-        # out = [xX,xA,xA_di,xA_di_t]
         if not self.wo_agg:
             if not self.wo_undirected:
-                # und_out = []
-                # mask = self.sm(self.agg_att)
                 mat = []
-                for i in range(self.nlayers*2): # directedのみのケースで修正が必要
+                for i in range(self.nlayers*2): 
                     mat.append(list_adj[i][st:end].to(device))
                 mat = torch.concat(mat, axis=1)
                 out.append(self.mlp_agg(mat, input_tensor=True))
-                    # tmp = self.sm_x(self.wt1[i](mat))
-                    # tmp = torch.mul(mask[i], tmp)
-                    # und_out.append(tmp)
             if not self.wo_directed:
-                # dire_out = []
-                # mask = self.sm(self.agg_di_att)
                 mat = []
                 for i in range(self.nlayers*2):
                     mat.append(list_adj[self.nlayers*2+i][st:end].to(device))
                 mat = torch.concat(mat, axis=1)
                 out.append(self.mlp_agg_di(mat, input_tensor=True))
-
                 if not self.wo_transpose:
                     mat = []
                     for i in range(self.nlayers*2):
                         mat.append(list_adj[self.nlayers*4+i][st:end].to(device))
                     mat = torch.concat(mat, axis=1)
-                    out.append(self.mlp_agg_di_t(mat, input_tensor=True))
-            
-        if not self.wo_att:
-            mask = self.sm(self.att)
-            for i in range(len(out)):
-                if self.normalization:
-                    out[i] = self.sm_x(out[i])
-                out[i] = torch.mul(mask[i], out[i])            
-        if self.agg == 'concat':
-            agg_out = torch.concat(out, axis=1)
-        elif self.agg == 'sum':
-            agg_out = 0
-            for i in range(len(out)):
-                agg_out += out[i]
+                    out.append(self.mlp_agg_di_t(mat, input_tensor=True))           
+        agg_out = torch.concat(out, axis=1)
         return agg_out
     
     def forward(self, x, A, A_di, A_di_t, list_adj, device, st=0, end=0, edge_weight=None):
@@ -242,9 +193,6 @@ class FSGNN_Large(nn.Module):
         out = self.act_fn(final_mat)
         out = F.dropout(out,self.dropout1,training=self.training)
         out = self.fc2(out)
-        # out = self.act_fn(out)
-        # out = F.dropout(out,self.dropout2,training=self.training)
-        # out = self.fc3(out)
         return out
         
     def forward(self,list_adj,device,st=0,end=0):
@@ -302,7 +250,6 @@ class GPR_prop(MessagePassing):
         hidden = x*(self.temp[0])
         for k in range(self.K):
             x = self.propagate(edge_index, x=x, norm=norm)
-            # x = torch.spmm(edge_index, x)
             gamma = self.temp[k+1]
             hidden = hidden + gamma*x
         return hidden
@@ -338,12 +285,10 @@ class GPRGNN(torch.nn.Module):
 
         if self.dprate == 0.0:
             x = self.prop1(x, edge_index)
-            # return F.log_softmax(x, dim=1)
             return F.log_softmax(x,dim=1), F.softmax(x, dim=1)
         else:
             x = F.dropout(x, p=self.dprate, training=self.training)
             x = self.prop1(x, edge_index)
-            # return F.log_softmax(x, dim=1)
             return F.log_softmax(x,dim=1), F.softmax(x, dim=1)
 
 ## from https://github.com/tkipf/pygcn
@@ -395,7 +340,6 @@ class GCN_Net(torch.nn.Module):
         return F.log_softmax(x,dim=1), F.softmax(x, dim=1)
 
 class GCN_Net2(torch.nn.Module):
-    # 元々GPRGNNで書いてあったGCNをgraphSAINT用に改変
     def __init__(self, args):
         super(GCN_Net2, self).__init__()
         self.conv1 = GCNConv(args.num_features, args.hidden)
@@ -420,171 +364,6 @@ class GCN_Net2(torch.nn.Module):
         edge_index.to('cpu')
         return F.log_softmax(x, dim=1)
 
-class JKnet(GCN):
-    def __init__(self, args):
-        super().__init__(
-            in_channels=args.num_features,
-            out_channels=args.C,
-            hidden_channels=int(args.hidden),
-            num_layers=3,
-            dropout=args.dropout,
-            act=ReLU(inplace=True),
-            norm=None,
-            jk=args.JK
-        )
-        self.edge_index = args.edge_index
-
-    def forward(self, features, edge_index):
-        edge_index = edge_index
-        x = features
-        x_final = super().forward(x, edge_index)
-        return F.log_softmax(x_final, dim=1)
-
-    def set_aggr(self, aggr):
-        for conv in self.convs:
-            conv.aggr = aggr
-
-class JKnet3(torch.nn.Module):
-    def __init__(self, args):
-        super(JKnet3, self).__init__()
-        self.pooling = args.JK
-        self.nlayers = 3
-        self.conv1 = GraphConvolution(args.num_features, args.hidden)
-        self.conv = torch.nn.ModuleList([GraphConvolution(args.hidden, args.hidden) for _ in range(self.nlayers-1)])
-        if self.pooling == "cat":
-            self.W_final = torch.nn.Linear(args.hidden*self.nlayers, args.C)
-        # elif self.pooling == "max":
-        #     self.W_final = torch.nn.Linear(args.hidden, args.C)
-        self.act_fn = torch.nn.ReLU()
-        self.dropout = args.dropout
-        self.reset_parameters()
-        
-    def reset_parameters(self):
-        self.conv1.reset_parameters()
-        for ind in range(len(self.conv)):
-            self.conv[ind].reset_parameters()
-        if self.pooling == "cat":
-            self.W_final.reset_parameters()
-
-    def forward(self, x, adj):
-        x = self.conv1(x, adj)
-        x_list = [x]
-        for i in range(2):
-            x = self.act_fn(x)
-            x = F.dropout(x, p=self.dropout, training=self.training)
-            x = self.conv[i](x, adj)
-            x_list.append(x)
-        if self.pooling == "cat":
-            x = torch.concat(x_list,dim=1)
-            x = self.act_fn(x)
-            x = F.dropout(x, p=self.dropout, training=self.training)
-            x = self.W_final(x)
-        elif self.pooling == "max":
-            x = torch.stack(x_list).max(dim=0).values
-        # return F.log_softmax(x,dim=1)
-        return F.log_softmax(x,dim=1), F.softmax(x, dim=1)
-
-class ChebNet(torch.nn.Module):
-    def __init__(self, args):
-        super(ChebNet, self).__init__()
-        self.conv1 = ChebConv(args.num_features, args.hidden, K=2)
-        self.conv2 = ChebConv(args.hidden, args.C, K=2)
-        self.dropout = args.dropout
-
-    def reset_parameters(self):
-        self.conv1.reset_parameters()
-        self.conv2.reset_parameters()
-
-    def forward(self, data):
-        x, edge_index = data.x, self.edge_index
-        x = F.relu(self.conv1(x, edge_index))
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.conv2(x, edge_index)
-        return F.log_softmax(x, dim=1)
-
-
-class GAT_Net(torch.nn.Module):
-    def __init__(self, args):
-        super(GAT_Net, self).__init__()
-        self.conv1 = GATConv(
-            args.num_features,
-            args.hidden,
-            heads=args.heads,
-            dropout=args.dropout)
-        self.conv2 = GATConv(
-            args.hidden * args.heads,
-            args.C,
-            heads=args.output_heads,
-            concat=False,
-            dropout=args.dropout)
-        self.dropout = args.dropout
-
-    def reset_parameters(self):
-        self.conv1.reset_parameters()
-        self.conv2.reset_parameters()
-
-    def forward(self, x, edge_index):
-        # x, edge_index = data.x, self.edge_index
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = F.elu(self.conv1(x, edge_index))
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.conv2(x, edge_index)
-        # return F.log_softmax(x, dim=1)
-        return F.log_softmax(x,dim=1), F.softmax(x, dim=1)
-
-
-class APPNP_Net(torch.nn.Module):
-    def __init__(self, args):
-        super(APPNP_Net, self).__init__()
-        self.lin1 = Linear(args.num_features, args.hidden)
-        self.lin2 = Linear(args.hidden, args.C)
-        self.prop1 = APPNP(args.K, args.alpha)
-        self.dropout = args.dropout
-
-    def reset_parameters(self):
-        self.lin1.reset_parameters()
-        self.lin2.reset_parameters()
-
-    def forward(self, data):
-        x, edge_index = data.x, self.edge_index
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = F.relu(self.lin1(x))
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.lin2(x)
-        x = self.prop1(x, edge_index)
-        # return F.log_softmax(x, dim=1)
-        return F.log_softmax(x,dim=1), F.softmax(x, dim=1)
-
-
-class GCN_JKNet(torch.nn.Module):
-    def __init__(self, args):
-        in_channels = args.num_features
-        out_channels = args.C
-
-        super(GCN_JKNet, self).__init__()
-        self.conv1 = GCNConv(in_channels, 16)
-        self.conv2 = GCNConv(16, 16)
-        self.lin1 = torch.nn.Linear(16, out_channels)
-        self.one_step = APPNP(K=1, alpha=0)
-        self.JK = JumpingKnowledge(mode='lstm',
-                                   channels=16,
-                                   num_layers=4
-                                   )
-
-    def forward(self, data):
-        x, edge_index = data.x, self.edge_index
-
-        x1 = F.relu(self.conv1(x, edge_index))
-        x1 = F.dropout(x1, p=0.5, training=self.training)
-
-        x2 = F.relu(self.conv2(x1, edge_index))
-        x2 = F.dropout(x2, p=0.5, training=self.training)
-
-        x = self.JK([x1, x2])
-        x = self.one_step(x, edge_index)
-        x = self.lin1(x)
-        return F.log_softmax(x, dim=1)
-    
 class LINKX(torch.nn.Module):
     """ our LINKX method with skip connections 
         a = MLP_1(A), x = MLP_2(X), MLP_3(sigma(W_1[a, x] + a + x))
@@ -708,173 +487,6 @@ class MLP_minibatch(torch.nn.Module): # mini-batch training
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lin3(x)
         return F.log_softmax(x, dim=1), F.softmax(x, dim=1)
-    
-class LINKGNN(torch.nn.Module):
-    # def __init__(self, in_channels, hidden_channels, out_channels, num_layers, num_nodes, dropout=.5, cache=False, inner_activation=False, inner_dropout=False, init_layers_A=1, init_layers_X=1):
-    def __init__(self, args, gnn, gnn_di=None, gnn_di_t=None):
-        super(LINKGNN, self).__init__()
-        self.num_nodes = args.num_nodes
-        self.in_channels = args.num_features
-        self.out_channels = args.C
-        self.num_edge_layers = args.num_edge_layers
-        self.gnn = gnn
-        self.gnn_di = gnn_di
-        self.gnn_di_t = gnn_di_t
-        
-        self.mlpA = MLP(self.num_nodes, args.hidden, args.hidden, args.num_edge_layers, dropout=0)
-        self.mlpA_t = MLP(self.num_nodes, args.hidden, args.hidden, args.num_edge_layers, dropout=0)
-        self.mlpX = MLP(self.in_channels, args.hidden, args.hidden, args.num_node_layers, dropout=0)
-        # self.W = nn.Linear(3*args.hidden, args.hidden) # for MLP_X, MLP_A, GNN
-        self.mlp_final = MLP(args.hidden, args.hidden, self.out_channels, args.linkx_layers, dropout=args.linkx_dropout)
-        self.A = None
-        
-        TEMP = np.ones(7) / 7
-        self.att = nn.Parameter(torch.tensor(TEMP, dtype=torch.float32))        
-        self.sm = nn.Softmax(dim=0)
-        self.sm_x = nn.Softmax(dim=1)
-        
-        # self.inner_activation = inner_activation
-        # self.inner_dropout = inner_dropout
-        self.inner_activation = False
-        self.inner_dropout = False
-
-    def reset_parameters(self):	
-        self.mlpA.reset_parameters()	
-        self.mlpX.reset_parameters()
-        self.W.reset_parameters()
-        self.mlp_final.reset_parameters()	
-        
-    def encoder(self, x, A, A_di, A_di_t, list_adj, device, st=0, end=0, edge_weight=None):
-        x = x[st:end].to(device)
-        A = A[st:end].to_torch_sparse_coo_tensor().to(device)
-        A_di = A_di[st:end].to_torch_sparse_coo_tensor().to(device)
-        A_di_t = A_di_t[st:end].to_torch_sparse_coo_tensor().to(device)
-
-        xA = self.sm_x(self.mlpA(A, input_tensor=True))
-        xA_di = self.sm_x(self.mlpA_di(A_di, input_tensor=True))
-        xA_di_t = self.sm_x(self.mlpA_di_t(A_di_t, input_tensor=True))
-        xX = self.sm_x(self.mlpX(x, input_tensor=True))
-        
-        xGNN = self.sm_x(self.gnn.encoder(list_adj[0],device,st=st,end=end))
-        xGNN_di = self.sm_x(self.gnn_di.encoder(list_adj[1],device,st=st,end=end))
-        xGNN_di_t = self.sm_x(self.gnn_di_t.encoder(list_adj[2],device,st=st,end=end))
-        
-        mask = self.sm(self.att)
-        x = mask[0]*xA + mask[1]*xA_di + mask[2]*xA_di_t + mask[3]*xX + mask[4]*xGNN + mask[5]*xGNN_di + mask[6]*xGNN_di_t
-        return x
-    
-    # def forward(self, data):	
-    def forward(self, x, A, A_di, A_di_t, list_adj, device, st=0, end=0, edge_weight=None):
-        x = self.encoder(x, A, A_di, A_di_t, list_adj, device, st=st, end=end)
-        x = F.relu(x)
-        x = self.mlp_final(x, input_tensor=True)
-        return F.log_softmax(x, dim=1), F.softmax(x, dim=1)
-        # return x
-
-class simp(torch.nn.Module):
-    # def __init__(self, in_channels, hidden_channels, out_channels, num_layers, num_nodes, dropout=.5, cache=False, inner_activation=False, inner_dropout=False, init_layers_A=1, init_layers_X=1):
-    def __init__(self, args, nlayers):
-        super(simp, self).__init__()
-        self.num_nodes = args.num_nodes
-        self.in_channels = args.num_features
-        self.out_channels = args.C
-        self.num_edge_layers = args.num_edge_layers
-        self.agg = args.agg
-        self.wo_mlp = args.wo_mlp
-        self.wo_undirected = args.wo_undirected
-        self.wo_directed = args.wo_directed
-        self.wo_adj = args.wo_adj
-        
-        self.nlayers = 0
-        if not self.wo_undirected:
-            self.nlayers += nlayers*2
-        if not self.wo_directed:
-            self.nlayers += nlayers*4
-        self.wt1 = nn.ModuleList([nn.Linear(self.in_channels,int(args.hidden)) for _ in range(self.nlayers)])
-        # self.wt1 = nn.ModuleList([MLP(self.in_channels, args.hidden, args.hidden, args.num_agg_layers, dropout=0) for _ in range(self.nlayers)])
-        
-        nMLP=0
-        if not self.wo_mlp:
-            self.mlpX = MLP(self.in_channels, args.hidden, args.hidden, args.num_node_layers, dropout=0)
-            nMLP += 1
-        if not self.wo_adj:
-            if not self.wo_undirected:
-                self.mlpA = MLP(self.num_nodes, args.hidden, args.hidden, args.num_edge_layers, dropout=0)
-                nMLP += 1
-            if not self.wo_directed:
-                self.mlpA_di = MLP(self.num_nodes, args.hidden, args.hidden, args.num_edge_layers, dropout=0)
-                self.mlpA_di_t = MLP(self.num_nodes, args.hidden, args.hidden, args.num_edge_layers, dropout=0)
-                nMLP += 2
-        # self.W = nn.Linear(3*args.hidden, args.hidden) # for MLP_X, MLP_A, GNN
-        if self.agg == 'concat':
-            self.mlp_final = MLP(args.hidden*(self.nlayers+nMLP), args.hidden, self.out_channels, args.final_layers, dropout=args.dropout)
-        elif self.agg == 'sum':
-            self.mlp_final = MLP(args.hidden, args.hidden, self.out_channels, args.final_layers, dropout=args.dropout)
-        self.A = None
-        
-        # TEMP = np.ones(7) / 7
-        # self.att = nn.Parameter(torch.tensor(TEMP, dtype=torch.float32))        
-        self.sm = nn.Softmax(dim=0)
-        self.sm_x = nn.Softmax(dim=1)
-        
-        # self.inner_activation = inner_activation
-        # self.inner_dropout = inner_dropout
-        self.attention = True
-        if self.attention:
-            num_att = self.nlayers + nMLP
-            TEMP = np.ones(num_att)
-            self.att = nn.Parameter(torch.tensor(TEMP, dtype=torch.float32))
-            
-
-    def reset_parameters(self):	
-        self.mlpA.reset_parameters()	
-        self.mlpX.reset_parameters()
-        self.W.reset_parameters()
-        self.mlp_final.reset_parameters()	
-        
-    def encoder(self, x, A, A_di, A_di_t, list_adj, device, st=0, end=0, edge_weight=None):
-        x = x[st:end].to(device)
-        A_di = A_di[st:end].to_torch_sparse_coo_tensor().to(device)
-        A_di_t = A_di_t[st:end].to_torch_sparse_coo_tensor().to(device)
-        A = A[st:end].to_torch_sparse_coo_tensor().to(device)
-
-        out = []
-        
-        if not self.wo_mlp:
-            xX = self.sm_x(self.mlpX(x, input_tensor=True))
-            out.append(xX)
-        if not self.wo_adj:
-            if not self.wo_undirected:
-                xA = self.sm_x(self.mlpA(A, input_tensor=True))
-                out.append(xA)
-            if not self.wo_directed:
-                xA_di = self.sm_x(self.mlpA_di(A_di, input_tensor=True))
-                out.append(xA_di)
-                xA_di_t = self.sm_x(self.mlpA_di_t(A_di_t, input_tensor=True))
-                out.append(xA_di_t)
-        
-        # out = [xX,xA,xA_di,xA_di_t]
-        for i in range(len(self.wt1)): # directedのみのケースで修正が必要
-            mat = list_adj[i][st:end].to(device)
-            out.append(self.sm_x(self.wt1[i](mat)))
-        if self.attention:
-            mask = self.sm(self.att)
-            for i in range(len(out)):
-                out[i] = torch.mul(mask[i], out[i])            
-        if self.agg == 'concat':
-            agg_out = torch.concat(out, axis=1)
-        elif self.agg == 'sum':
-            agg_out = 0
-            for i in range(len(out)):
-                agg_out += out[i]
-        return agg_out
-    
-    def forward(self, x, A, A_di, A_di_t, list_adj, device, st=0, end=0, edge_weight=None):
-        x = self.encoder(x, A, A_di, A_di_t, list_adj, device, st=st, end=end)
-        x = F.relu(x)
-        x = self.mlp_final(x, input_tensor=True)
-        return F.log_softmax(x, dim=1), F.softmax(x, dim=1)
-    
 
 def process(mul_L_real, mul_L_imag, weight, X_real, X_imag):
     data = torch.spmm(mul_L_real, X_real)
@@ -1333,8 +945,6 @@ class ACMGCN(nn.Module):
     
 class GloGNN(nn.Module):
     def __init__(self, args):
-    # def __init__(self, nnodes, nfeat, nhid, nclass, dropout, alpha, beta, gamma, delta,
-                 # norm_func_id, norm_layers, orders, orders_func_id, device):
         super(GloGNN, self).__init__()
         
         nnodes = args.num_nodes
@@ -1362,14 +972,8 @@ class GloGNN(nn.Module):
         self.beta1 = torch.tensor(beta1)
         self.beta2 = torch.tensor(beta2)
         self.gamma = torch.tensor(gamma)
-        # self.alpha = torch.tensor(alpha).to(device)
-        # self.beta = torch.tensor(beta).to(device)
-        # self.gamma = torch.tensor(gamma).to(device)
-        # self.delta = torch.tensor(delta).to(device)
         self.norm_layers = norm_layers
         self.orders = orders
-        # self.device = device
-        # self.class_eye = torch.eye(self.nclass)
         self.class_eye = torch.eye(self.nclass).to(device)
         self.orders_weight = Parameter(
             (torch.ones(orders, 1) / orders), requires_grad=True

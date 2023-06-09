@@ -1,28 +1,26 @@
 import numpy as np
-import torch
 import pickle
 from ogb.nodeproppred.dataset_pyg import PygNodePropPredDataset
-import torch_geometric.transforms as T
 from torch_geometric.datasets import Reddit2, Flickr, WebKB, WikipediaNetwork, Actor, Amazon, Planetoid
 import scipy.sparse as sp
+import argparse
+from tqdm import tqdm
+import time
+import math
+import sys
+import os
+
+import torch
+import torch_geometric.transforms as T
 from torch_geometric.utils import to_undirected
 from torch_sparse import SparseTensor, remove_diag, set_diag, spmm, spspmm, get_diag
 from torch_sparse import sum as ts_sum
 from torch_sparse import mul as ts_mul
 from torch_sparse import transpose as ts_trans
-import argparse
-from tqdm import tqdm
-import time
-import math
 
 from dataset_utils import *
 from utils_general import fix_seed, train_test_split, load_npz_dataset
-
-import sys
-import os
-
-data_root = "/home/maekawa/class_imbalance/"
-
+from config import base_dir as data_root
 
 def minibatch_normalization(adj,N,device,k=1000000):
     deg = ts_sum(adj, dim=1)
@@ -35,7 +33,6 @@ def minibatch_normalization(adj,N,device,k=1000000):
     for i in tqdm(range(len(adj[0])//k+1)): 
         tmp = SparseTensor(row=adj[0][i*k:(i+1)*k], 
                            col=adj[1][i*k:(i+1)*k], 
-                              # value=adj[2][i*k:(i+1)*k], 
                            sparse_sizes=(N,N)).to(device)
         tmp = ts_mul(tmp, deg_inv_col)
         tmp = ts_mul(tmp, deg_inv_row).to("cpu").coo()
@@ -91,8 +88,6 @@ def main(args, seed=100):
         
     elif args.dataset in ["fb100","deezer-europe","arxiv-year","pokec","snap-patents","yelp-chi","genius","twitch-gamer","wiki"]:
         if args.dataset == "fb100":
-            # if sub_dataname not in ("Penn94", "Amherst41", "Cornell5", "Johns Hopkins55", "Reed98"):
-                # print("Invalid sub_dataname, deferring to Penn94 graph")
             sub_dataname = "Penn94"
             dataset = load_fb100_dataset(sub_dataname)
         elif args.dataset == "deezer-europe":
@@ -124,7 +119,6 @@ def main(args, seed=100):
     elif args.dataset in ["squirrel-filtered-directed","chameleon-filtered-directed"]:
         data_dgl = Dataset(name=args.dataset)
         edge_index =  torch.stack(list(data_dgl.graph.edges()),dim=0).long()
-        # edge_index = torch.tensor([data_dgl.graph.edges()[0],data_dgl.graph.edges()[1]])
         N = data_dgl.graph.num_nodes()
         features = data_dgl.node_features
         labels = data_dgl.labels
@@ -156,8 +150,6 @@ def main(args, seed=100):
         elif args.dataset == "actor":
             dataset = Actor(root=data_root+"dataset/"+args.dataset+"/")
         else:
-            # if args.dataset in ["cora","citeseer","pubmed"]:
-            #     data_func = Planetoid
             if args.dataset in ["wisconsin", "cornell", "texas"]:
                 data_func = WebKB
                 split_flag = True # there are several default splits
@@ -167,8 +159,6 @@ def main(args, seed=100):
             elif args.dataset in ["computers","photo"]:
                 data_func = Amazon
             dataset = data_func(data_root+"dataset/"+args.dataset+"/", args.dataset)
-            
-            # dataset = data_func(data_root+"dataset/"+args.dataset+"/", args.dataset, transform=T.NormalizeFeatures())
             
         data = dataset[0]
         if split_flag == True:
@@ -194,26 +184,15 @@ def main(args, seed=100):
     adj = adj.to_scipy(layout="csr")
     del edge_index
 
-    # if args.inductive:
-    #     adj = adj[train_idx, :][:, train_idx]
-    #     N = len(train_idx)
-    # if args.dataset not in ["arxiv-year", "snap-patents"]:
-        # print("Getting undirected matrix...")
-
-    if not os.path.exists(data_root+"linkgnn/precomputation_data/"+args.dataset):
-        os.mkdir(data_root+"linkgnn/precomputation_data/"+args.dataset)
-
-    # if not os.path.exists(data_root+"linkgnn/precomputation_data/"+args.dataset+"/feature.pickle"):
-    # if not os.path.exists(data_root+"linkgnn/precomputation_data/"+args.dataset+"/feature_training.pickle"):
+    if not os.path.exists(data_root+"precomputation_data/"+args.dataset):
+        os.mkdir(data_root+"precomputation_data/"+args.dataset)
     feat = features.numpy()
     feat = torch.from_numpy(feat).float()
-    # with open(data_root+"linkgnn/precomputation_data/"+args.dataset+"/feature.pickle","wb") as fopen:
-    #     pickle.dump(feat,fopen)
-    with open(data_root+"linkgnn/precomputation_data/"+args.dataset+"/feature_training_"+str(seed)+".pickle","wb") as fopen:
+    with open(data_root+"precomputation_data/"+args.dataset+"/feature_training_"+str(seed)+".pickle","wb") as fopen:
         pickle.dump(feat[train_idx,:],fopen)
-    with open(data_root+"linkgnn/precomputation_data/"+args.dataset+"/feature_validation_"+str(seed)+".pickle","wb") as fopen:
+    with open(data_root+"precomputation_data/"+args.dataset+"/feature_validation_"+str(seed)+".pickle","wb") as fopen:
         pickle.dump(feat[valid_idx,:],fopen)
-    with open(data_root+"linkgnn/precomputation_data/"+args.dataset+"/feature_test_"+str(seed)+".pickle","wb") as fopen:
+    with open(data_root+"precomputation_data/"+args.dataset+"/feature_test_"+str(seed)+".pickle","wb") as fopen:
         pickle.dump(feat[test_idx,:],fopen)
     del feat
 
@@ -230,8 +209,6 @@ def main(args, seed=100):
 
     torch.tensor([0]).to(device)
     filt = args.filter
-    # k=adj.nnz()//a+1
-    # print(filt,": Normalizing matrix A...")
     if filt == "adjacency":
         adj = adj + adj.transpose()
         adj = adj.tocoo()
@@ -241,11 +218,6 @@ def main(args, seed=100):
         t_tmp = time.time()
         adj = set_diag(adj,1)
         k=adj.nnz()//a+1
-        # adj = adj.coo()
-        # adj_mat = SparseTensor(row=adj[0],
-        #                        col=adj[1],
-        #                        value=torch.ones(len(adj[0])),
-        #                        sparse_sizes=(N,N))
         adj_mat = minibatch_normalization(adj,N,device,k=k)
     elif filt == "exact1hop":
         adj = adj + adj.transpose()
@@ -254,11 +226,6 @@ def main(args, seed=100):
 
         adj_tag = "adj_i"
         t_tmp = time.time()
-        # adj = adj.coo()
-        # adj_mat = SparseTensor(row=adj[0],
-        #                        col=adj[1],
-        #                        value=torch.ones(len(adj[0])),
-        #                        sparse_sizes=(N,N))
         adj = remove_diag(adj,0)
         k=adj.nnz()//a+1
         adj_mat = minibatch_normalization(adj,N,device,k=k)
@@ -301,10 +268,7 @@ def main(args, seed=100):
     
     del adj
 
-    if args.inductive:
-        agg_feat = features.numpy()[train_idx]
-    else:
-        agg_feat = features.numpy()
+    agg_feat = features.numpy()
     agg_feat = torch.from_numpy(agg_feat).float()
 
     adj_mat = adj_mat.coo()
@@ -341,37 +305,23 @@ def main(args, seed=100):
             agg_feat = torch.concat(feat_list, dim=1)
             print(str(_+1)+"hop finished")
 
-            if args.inductive:
-                with open(data_root+"linkgnn/precomputation_data/"+args.dataset+"/"+filt+"_"+str(_+1)+"_training_"+str(seed)+".pickle","wb") as fopen:
-                    pickle.dump(agg_feat,fopen)
-            else:
-                with open(data_root+"linkgnn/precomputation_data/"+args.dataset+"/"+filt+"_"+str(_+1)+"_training_"+str(seed)+".pickle","wb") as fopen:
-                    pickle.dump(agg_feat[train_idx,:],fopen)
-                with open(data_root+"linkgnn/precomputation_data/"+args.dataset+"/"+filt+"_"+str(_+1)+"_validation_"+str(seed)+".pickle","wb") as fopen:
-                    pickle.dump(agg_feat[valid_idx,:],fopen)
-                with open(data_root+"linkgnn/precomputation_data/"+args.dataset+"/"+filt+"_"+str(_+1)+"_test_"+str(seed)+".pickle","wb") as fopen:
-                    pickle.dump(agg_feat[test_idx,:],fopen)
-
-                # with open(data_root+"linkgnn/precomputation_data/"+args.dataset+"/"+filt+"_"+str(_+1)+".pickle","wb") as fopen:
-                #     pickle.dump(agg_feat,fopen)
+            with open(data_root+"precomputation_data/"+args.dataset+"/"+filt+"_"+str(_+1)+"_training_"+str(seed)+".pickle","wb") as fopen:
+                pickle.dump(agg_feat[train_idx,:],fopen)
+            with open(data_root+"precomputation_data/"+args.dataset+"/"+filt+"_"+str(_+1)+"_validation_"+str(seed)+".pickle","wb") as fopen:
+                pickle.dump(agg_feat[valid_idx,:],fopen)
+            with open(data_root+"precomputation_data/"+args.dataset+"/"+filt+"_"+str(_+1)+"_test_"+str(seed)+".pickle","wb") as fopen:
+                pickle.dump(agg_feat[test_idx,:],fopen)
 
     del agg_feat, adj_mat, tmp
     print(f"GPU max memory usage: {torch.cuda.max_memory_allocated(device=device)/10**9}")
 
     #save labels
-    # if not os.path.exists(data_root+"linkgnn/precomputation_data/"+args.dataset+"/labels.pickle"):
-    # labels_train = labels[train_idx].reshape(-1).long()
-    # labels_valid = labels[valid_idx].reshape(-1).long()
-    # labels_test = labels[test_idx].reshape(-1).long()
     split_idx = dict()
     split_idx["train"] = train_idx
     split_idx["valid"] = valid_idx
     split_idx["test"] = test_idx
-    with open(data_root+"linkgnn/precomputation_data/"+args.dataset+"/labels_"+str(seed)+".pickle","wb") as fopen:
+    with open(data_root+"precomputation_data/"+args.dataset+"/labels_"+str(seed)+".pickle","wb") as fopen:
         pickle.dump([split_idx, labels.reshape(-1).long()], fopen)
-        # pickle.dump([labels_train,labels_valid,labels_test],fopen)
-        # with open(data_root+"linkgnn/precomputation_data/"+args.dataset+"/labels.pickle","wb") as fopen:
-        #     pickle.dump(labels,fopen)
 
 
 
@@ -385,7 +335,6 @@ if __name__ == '__main__':
                         help="graph filter for convolution")
     parser.add_argument("--layer",type=int,default=5,help="number of hops")
     parser.add_argument("--cuda", default=1, type=int, help="which GPU to use")
-    parser.add_argument("--inductive", type=bool, default=False, help="inductive or transductive setting")
 
     args = parser.parse_args()
     main(args)

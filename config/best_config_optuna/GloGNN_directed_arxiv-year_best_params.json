@@ -1,0 +1,12 @@
+{
+    "wd": 4,
+    "lr": 4,
+    "hidden": 1,
+    "dropout": 1,
+    "glognn_alpha": 1,
+    "glognn_beta1": 2,
+    "glognn_beta2": 1,
+    "glognn_gamma": 3,
+    "norm_layers": 0,
+    "orders": 0
+}

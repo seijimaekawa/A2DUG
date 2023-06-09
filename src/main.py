@@ -29,10 +29,6 @@ from hermitian import hermitian_decomp_sparse, cheb_poly_sparse
 ## for hyperparameter tune ##
 import optuna
 
-# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:256"
-# linkgnn_flag = 'linkgnn_'
-linkgnn_flag = '' # 'simplink'
-
 def main(args):
     def create_batch(input_data):
         num_sample = input_data[0].shape[0]
@@ -49,12 +45,10 @@ def main(args):
         model.eval()
         torch.cuda.empty_cache()
         with torch.no_grad():
-            if args.linkgnn:
+            if args.model == "A2DUG":
                 output, out_AUC = model(features[split_idx['test']], A_test, A_di_test, A_di_t_test, test_data, device, st, end)
             elif args.model in ["LINKX", "LINK"]:
                 output, out_AUC = model(features[split_idx['test']], A_test, device, st, end)
-            # elif args.model in ["SGC", "FSGNN"]:
-            #     output, out_AUC = model(test_data, device, st, end)
             elif args.model == "GloGNN":
                 out = model(features, A)
                 output = out[0][split_idx['test']]
@@ -85,12 +79,10 @@ def main(args):
         def train(st,end):
             model.train()
             optimizer.zero_grad()
-            if args.linkgnn:
+            if args.model == "A2DUG":
                 output, out_AUC = model(features[split_idx['train']], A_train, A_di_train, A_di_t_train, train_data, device, st, end)
             elif args.model in ["LINKX", "LINK"]:
                 output, out_AUC = model(features[split_idx['train']], A_train, device, st, end)
-            # elif args.model in ["SGC", "FSGNN"]:
-            #     output, out_AUC = model(train_data, device, st, end)
             elif args.model == "GloGNN":
                 out = model(features, A)
                 output = out[0][split_idx['train']]
@@ -123,12 +115,10 @@ def main(args):
             model.eval()
             torch.cuda.empty_cache()
             with torch.no_grad():
-                if args.linkgnn:
+                if args.model == "A2DUG":
                     output, out_AUC = model(features[split_idx['valid']], A_valid, A_di_valid, A_di_t_valid, valid_data, device, st, end)
                 elif args.model in ["LINKX", "LINK"]:
                     output, out_AUC = model(features[split_idx['valid']], A_valid, device, st, end)
-                # elif args.model in ["SGC", "FSGNN"]:
-                #     output, out_AUC = model(valid_data, device, st, end)
                 elif args.model == "GloGNN":
                     out = model(features, A)
                     output = out[0][split_idx["valid"]]
@@ -156,11 +146,9 @@ def main(args):
             return loss_val.item(), output.max(1)[1].type_as(valid_labels[st:end]), out_AUC
 
         bad_counter = 0
-        # best = 999999999
         best = 0
         best_epoch = 0
         acc = 0
-        # valid_num = valid_data[0][0].shape[0]
         valid_num = valid_labels.shape[0]
         best_dic = dict()
 
@@ -227,8 +215,6 @@ def main(args):
                     'acc:{:.2f}'.format(result_test['accuracy']*100),
                     'f1 macro:{:.2f}'.format(result_test['macro avg']['f1-score']*100)
                      )
-            # if loss_val < best:
-                # best = loss_val
             if result_val['accuracy'] > best:
                 best = result_val['accuracy']
                 best_dic['tra_loss'] = loss_tra
@@ -246,15 +232,14 @@ def main(args):
         return best_dic
     
     ### MAIN function ###
-    cudaid = "cuda:"+str(args.cuda)
+    if torch.cuda.is_available():
+        cudaid = "cuda:"+str(args.cuda)
+    else:
+        cudaid = 'cpu'
     device = torch.device(cudaid)
     print(device)
     
     ablation_tag = ""
-    if args.linkgnn:
-        ablation_tag += "_"+args.agg
-    if args.wo_att:
-        ablation_tag += "_wo_att"
     if args.wo_directed:
         ablation_tag += "_wo_directed"
     if args.wo_undirected:
@@ -275,16 +260,15 @@ def main(args):
     print(ablation_tag)
     
     ### Precomputation for Feature Aggregation ###
-    # data_path = base_dir+'extreme_few_label/precomputation_data/'+args.dataset
     precomp_flag = False    
     
     t_start = time.time()
     
     ### Data Load ###    
     # Load node features used for input model #
-    # input graph for linkgnn
-    if args.linkgnn:
-        train_data, valid_data, test_data, split_idx, label = load_precomp(args, precomp_flag, base_dir+'linkgnn/precomputation_data/'+args.dataset, seed=args.seed)
+    # input graph for A2DUG
+    if args.model == "A2DUG":
+        train_data, valid_data, test_data, split_idx, label = load_precomp(args, precomp_flag, base_dir+'precomputation_data/'+args.dataset, seed=args.seed)
         args.num_nodes = len(label)
         args.num_features = train_data[0].shape[1]
         edge_index, features, split_idx, label = load_graph(args, base_dir, seed=args.seed)
@@ -310,13 +294,10 @@ def main(args):
         adj = SparseTensor(row=row,col=col,sparse_sizes=(args.num_nodes, args.num_nodes))
         adj = adj.to_scipy(layout='csr')
         adj = adj.tocoo()
-        # args.num_nodes = features.shape[0]
         row = row-row.min()
         A = SparseTensor(row=row, col=col,
                          sparse_sizes=(args.num_nodes, args.num_nodes)
                         )
-        ## for undirected graphs
-        
         ## undirected
         A_train = A[split_idx['train']] #.to_torch_sparse_coo_tensor()
         A_valid = A[split_idx['valid']] #.to_torch_sparse_coo_tensor()
@@ -358,7 +339,7 @@ def main(args):
         valid_data = [features[split_idx['valid']]]
         test_data = [features[split_idx['test']]]
     elif args.model in ["SGC", "FSGNN"]:
-        train_data, valid_data, test_data, split_idx, label = load_precomp(args, precomp_flag, base_dir+'linkgnn/precomputation_data/'+args.dataset, seed=args.seed)
+        train_data, valid_data, test_data, split_idx, label = load_precomp(args, precomp_flag, base_dir+'precomputation_data/'+args.dataset, seed=args.seed)
         args.num_features = train_data[0].shape[1]
         args.num_nodes = len(label)
         
@@ -367,7 +348,6 @@ def main(args):
         args.num_nodes = features.shape[0]
         args.num_features = features.shape[1]
         edge_index, edge_in, in_weight, edge_out, out_weight = F_in_out(edge_index, args.num_nodes, None)
-        # data.edge_index, edge_in, in_weight, edge_out, out_weight = F_in_out(data.edge_index, data.y.size(-1), data.edge_weight)
         edge_index, features = edge_index.to(device), features.to(device)
         edge_in, in_weight, edge_out, out_weight = edge_in.to(device), in_weight.to(device), edge_out.to(device), out_weight.to(device)
     elif args.model in ["GloGNN","LINK","LINKX"]:
@@ -411,14 +391,10 @@ def main(args):
         args.num_features = features.shape[1]
         args.features = features
         
-    # print(split_idx['train'])
     train_labels = label[split_idx['train']].reshape(-1).long() # .to(device)
     valid_labels = label[split_idx['valid']].reshape(-1).long() #.to(device)
     test_labels = label[split_idx['test']].reshape(-1).long() #.to(device)
     args.C = max(int(train_labels.max()), int(valid_labels.max()), int(test_labels.max())) + 1
-    
-    ## extract few labels
-    # train_data, valid_data, test_data, train_labels, valid_labels, test_labels, num_labels = extract_few_labels(args.label_budget, train_data, valid_data, test_data, train_labels, valid_labels, test_labels, num_labels)
    
     train_labels = train_labels.reshape(-1).long().to(device)
     valid_labels = valid_labels.reshape(-1).long().to(device)
@@ -427,18 +403,15 @@ def main(args):
     time_preprocess = time.time() - t_start
     
     if args.dataset in ['wiki']:
-        # if not (args.wo_directed or args.wo_undirected or args.wo_agg or args.wo_adj):
-        # args.batch_split = wiki_batch_split
         args.batch_split = 20        
     if args.minibatch:
-        # batch_size = args.batch_size
         batch_size = int(args.num_nodes / args.batch_split) + 1
         print("### Mini-Batch Training! ###")
     else:
         batch_size = args.batch_size
     
     if args.optuna:
-        if args.model in ["simplink","MLP", "SGC", "FSGNN"]:
+        if args.model in ["A2DUG","MLP", "SGC", "FSGNN"]:
             list_bat_train = create_batch(train_data)
             list_bat_val = create_batch(valid_data)
             list_bat_test = create_batch(test_data)
@@ -453,10 +426,6 @@ def main(args):
 
 
         def objective(trial):
-            # if args.dataset in ['flickr','reddit','ogbn-products','ogbn-papers100M']:
-            #     with open(base_dir+'config/search_space_large/'+args.model+'.json') as f:
-            #         param = json.load(f)
-            # else:
             with open(base_dir+'config/search_space/'+args.model+'.json') as f:
                 param = json.load(f)
             if args.model == "MLP":
@@ -477,10 +446,7 @@ def main(args):
             elif args.model == "GloGNN":
                 wd = param["wd"][trial.suggest_int("wd", 0, len(param["wd"])-1, 1)]
                 lr = param["lr"][trial.suggest_int("lr", 0, len(param["lr"])-1, 1)]
-                if args.dataset == "snap-patents":
-                    # args.hidden = param["hidden"][trial.suggest_int("hidden", 0, 0, 1)]
-                    args.hidden = 64
-                elif args.dataset == "pokec":
+                if args.dataset == "pokec":
                     args.hidden = param["hidden"][trial.suggest_int("hidden", 0, len(param["hidden"])-2, 1)]
                 else:
                     args.hidden = param["hidden"][trial.suggest_int("hidden", 0, len(param["hidden"])-1, 1)]
@@ -623,7 +589,6 @@ def main(args):
                                                                    args.num_nodes,
                                                                    args.features.dtype,
                                                                    None
-                                                                   # data.edge_weight
                                                                   )
                 edge_index1 = edge_index1.to(device)
                 edge_weights1 = edge_weights1.to(device)
@@ -638,7 +603,6 @@ def main(args):
                                                                          args.num_nodes,
                                                                          args.features.dtype, 
                                                                          None
-                                                                         # data.edge_weight
                                                                          )
                     edge_index2 = edge_index2.to(device)
                     edge_weights2 = edge_weights2.to(device)
@@ -649,8 +613,8 @@ def main(args):
                 optimizer_sett = [{'params':model.parameters(),
                                    'lr':args.lr,
                                    'weight_decay': args.weight_decay}]
-            if args.model == 'simplink':
-                with open(base_dir+'config/search_space/simplink.json') as f:
+            if args.model == 'A2DUG':
+                with open(base_dir+'config/search_space/A2DUG.json') as f:
                     param = json.load(f)
                 args.weight_decay = param["wd"][trial.suggest_int("wd", 0, len(param["wd"])-1, 1)]
                 args.A_weight_decay = param["wd"][trial.suggest_int("A_wd", 0, len(param["wd"])-1, 1)]
@@ -658,12 +622,7 @@ def main(args):
                 args.lr = param["lr"][trial.suggest_int("lr", 0, len(param["lr"])-1, 1)]
                 args.A_lr = param["lr"][trial.suggest_int("A_lr", 0, len(param["lr"])-1, 1)]
                 args.X_lr = param["lr"][trial.suggest_int("X_lr", 0, len(param["lr"])-1, 1)]
-                # args.linkx_hidden = param["hidden"][trial.suggest_int("linkx_hidden", 0, len(linkx_param["hidden"])-1, 1)]
                 args.dropout = param["dropout"][trial.suggest_int("dropout", 0, len(param["dropout"])-1, 1)]
-                
-                if not args.wo_att:                
-                    args.wd_att = param["wd_att"][trial.suggest_int("wd_att", 0, len(param["wd_att"])-1, 1)]
-                    args.lr_att = param["lr_att"][trial.suggest_int("lr_att", 0, len(param["lr_att"])-1, 1)]
                 
                 args.num_edge_layers = param["num_edge_layers"][trial.suggest_int("num_edge_layers", 0, len(param["num_edge_layers"])-1, 1)]
                 args.num_node_layers = param["num_node_layers"][trial.suggest_int("num_node_layers", 0, len(param["num_node_layers"])-1, 1)]
@@ -671,19 +630,10 @@ def main(args):
                 args.final_layers = param["layers"][trial.suggest_int("layers", 0, len(param["layers"])-1, 1)]
                 args.final_weight_decay = param["wd"][trial.suggest_int("final_wd", 0, len(param["wd"])-1, 1)]
                 args.final_lr = param["lr"][trial.suggest_int("final_lr", 0, len(param["lr"])-1, 1)]
-                # print(args.weight_decay,args.lr,args.dropout, args.num_edge_layers, args.num_node_layers, args.layers)
-                
-                # args.linkgnn_wd_att = trial.suggest_int("linkgnn_wd_att", 0, len(linkx_param["linkgnn_wd_att"])-1, 1)
-                # model = LINKGNN(args, GNN_undi, GNN_di, GNN_di_t).to(device)
-                model = simplink(args, args.layer).to(device)
+                model = A2DUG(args, args.layer).to(device)
                 optimizer_sett = [
-                    # {'params': model.wt1.parameters(), 'weight_decay': args.weight_decay, 'lr': args.lr},
-                                   # {'params': model.W.parameters(), 'weight_decay': args.linkx_weight_decay, 'lr': args.linkx_lr},
                     {'params': model.mlp_final.parameters(), 'weight_decay': args.final_weight_decay, 'lr': args.final_lr}]
-                if not args.wo_att:
-                    optimizer_sett += [
-                        {'params': model.att, 'weight_decay': args.wd_att, 'lr': args.lr_att}
-                    ]
+                
                 if not args.wo_mlp:
                     optimizer_sett += [
                         {'params': model.mlpX.parameters(), 'weight_decay': args.X_weight_decay, 'lr': args.X_lr}
@@ -737,7 +687,6 @@ def main(args):
                                    'lr':args.lr,
                                    'weight_decay': args.weight_decay}]
 
-                
             if args.adam:
                 optimizer = optim.Adam(optimizer_sett)
             else:
@@ -746,31 +695,25 @@ def main(args):
             best_dic = train_step(model, optimizer)
             print("\nbest : val acc =", best_dic['val_result']['accuracy'])
             return best_dic['val_result']['accuracy']
-            # return best_dic['val_loss']
 
         t_total = time.time()
 
         # optimization
         study = optuna.create_study(direction="maximize")
-        # study = optuna.create_study(direction="minimize")
         study.optimize(objective, n_trials=100)
-        with open(base_dir+"config/best_config_optuna/"+linkgnn_flag+args.model+ablation_tag+"_"+args.dataset+"_budget"+str(args.label_budget)+"_best_params.json","w") as f:
+        with open(base_dir+"config/best_config_optuna/"+args.model+ablation_tag+"_"+args.dataset+"_best_params.json","w") as f:
             json.dump(study.best_params,f,indent=4)
         print("\nbest : params / value =  " , study.best_params, " / ", study.best_value)
                     
     if args.test:
-        # if args.dataset in ['flickr','reddit','ogbn-products','ogbn-papers100M']:
-        #     with open(base_dir+'config/search_space_large/'+args.model+'.json') as f:
-        #         param = json.load(f)
-        # else:
         with open(base_dir+'config/search_space/'+args.model+'.json') as f:
             param = json.load(f)
-        with open(base_dir+"config/best_config_optuna/"+linkgnn_flag+args.model+ablation_tag+"_"+args.dataset+"_budget"+str(args.label_budget)+"_best_params.json") as f:
+        with open(base_dir+"config/best_config_optuna/"+args.model+ablation_tag+"_"+args.dataset+"_best_params.json") as f:
             best_param = json.load(f)
         
         seed = args.seed
         res_dic = dict()
-        if args.model in ["simplink","MLP", "SGC", "FSGNN"]:
+        if args.model in ["A2DUG","MLP", "SGC", "FSGNN"]:
             list_bat_train = create_batch(train_data)
             list_bat_val = create_batch(valid_data)
             list_bat_test = create_batch(test_data)
@@ -782,9 +725,6 @@ def main(args):
             list_bat_train = [[0,len(train_labels)]]
             list_bat_val = [[0,len(valid_labels)]]
             list_bat_test = [[0,len(test_labels)]]
-            # list_bat_train = [[0,args.num_nodes]]
-            # list_bat_val = [[0,args.num_nodes]]
-            # list_bat_test = [[0,args.num_nodes]]
             
         if args.model == "MLP":
             model = MLP_minibatch(nfeat=args.num_features,
@@ -799,10 +739,7 @@ def main(args):
         elif args.model == "GloGNN":
             wd = param["wd"][best_param["wd"]]
             lr = param["lr"][best_param["lr"]]
-            if args.dataset == "snap-patents":
-                args.hidden = 64
-            else:
-                args.hidden = param["hidden"][best_param["hidden"]]
+            args.hidden = param["hidden"][best_param["hidden"]]
             args.dropout = param["dropout"][best_param["dropout"]]
             args.glognn_alpha = param["glognn_alpha"][best_param["glognn_alpha"]]
             args.glognn_beta1 = param["glognn_beta1"][best_param["glognn_beta1"]]
@@ -879,8 +816,6 @@ def main(args):
                                'lr': param["lr"][best_param["lr"]],
                                'weight_decay': param["wd"][best_param["wd"]]}]
         elif args.model == 'LINKX':
-            # args.weight_decay = param['wd'][best_param['wd']]
-            # args.lr = param['lr'][best_param['lr']]
             args.hidden = param["hidden"][best_param["hidden"]]
             args.num_edge_layers = param["num_edge_layers"][best_param["num_edge_layers"]]
             args.num_node_layers = param["num_node_layers"][best_param["num_node_layers"]]
@@ -892,7 +827,6 @@ def main(args):
         elif args.model == 'LINK':
             args.hidden = param["hidden"][best_param["hidden"]]
             args.num_edge_layers = param["num_edge_layers"][best_param["num_edge_layers"]]
-            # args.layers = param["layers"][best_param["layers"]]
             model = LINK(args).to(device)
             optimizer_sett = [{'params': model.parameters(),
                                'lr': param["lr"][best_param["lr"]],
@@ -942,7 +876,6 @@ def main(args):
                                                                args.num_nodes,
                                                                args.features.dtype,
                                                                None
-                                                               # data.edge_weight
                                                               )
             edge_index1 = edge_index1.to(device)
             edge_weights1 = edge_weights1.to(device)
@@ -957,7 +890,6 @@ def main(args):
                                                                      args.num_nodes,
                                                                      args.features.dtype, 
                                                                      None
-                                                                     # data.edge_weight
                                                                      )
                 edge_index2 = edge_index2.to(device)
                 edge_weights2 = edge_weights2.to(device)
@@ -968,21 +900,14 @@ def main(args):
             optimizer_sett = [{'params': model.parameters(),
                                'lr': args.lr,
                                'weight_decay': args.weight_decay}]
-        elif args.model == 'simplink':
-            # with open(base_dir+'config/search_space/simplink.json') as f:
-            #     param = json.load(f)
+        elif args.model == 'A2DUG':
             args.weight_decay = param["wd"][best_param["wd"]]
             args.A_weight_decay = param["wd"][best_param["A_wd"]]
             args.X_weight_decay = param["wd"][best_param["X_wd"]]
             args.lr = param["lr"][best_param["lr"]]
             args.A_lr = param["lr"][best_param["A_lr"]]
             args.X_lr = param["lr"][best_param["X_lr"]]
-            # args.linkx_hidden = param["hidden"][trial.suggest_int("linkx_hidden", 0, len(linkx_param["hidden"])-1, 1)]
             args.dropout = param["dropout"][best_param["dropout"]]
-
-            if not args.wo_att:
-                args.wd_att = param["wd_att"][best_param["wd_att"]]
-                args.lr_att = param["lr_att"][best_param["lr_att"]]
 
             args.num_edge_layers = param["num_edge_layers"][best_param["num_edge_layers"]]
             args.num_node_layers = param["num_node_layers"][best_param["num_node_layers"]]
@@ -990,18 +915,10 @@ def main(args):
             args.final_layers = param["layers"][best_param["layers"]]
             args.final_weight_decay = param["wd"][best_param["final_wd"]]
             args.final_lr = param["lr"][best_param["final_lr"]]
-            # args.linkgnn_wd_att = linkx_param["linkgnn_wd_att"][best_param["linkgnn_wd_att"]]
-            # print(args.weight_decay,args.lr,args.dropout, args.num_edge_layers, args.num_node_layers, args.layers)
-            # model = LINKGNN(args, GNN_undi, GNN_di, GNN_di_t).to(device)
-            model = simplink(args, args.layer).to(device)
+            model = A2DUG(args, args.layer).to(device)
             optimizer_sett = [
-                               # {'params': model.wt1.parameters(), 'weight_decay': args.weight_decay, 'lr': args.lr},
-                               # {'params': model.W.parameters(), 'weight_decay': args.linkx_weight_decay, 'lr': args.linkx_lr},
                 {'params': model.mlp_final.parameters(), 'weight_decay': args.final_weight_decay, 'lr': args.final_lr}]
-            if not args.wo_att:
-                optimizer_sett += [
-                    {'params': model.att, 'weight_decay': args.wd_att, 'lr': args.lr_att}
-                ]
+
             if not args.wo_mlp:
                 optimizer_sett += [
                     {'params': model.mlpX.parameters(), 'weight_decay': args.X_weight_decay, 'lr': args.X_lr}
@@ -1033,40 +950,15 @@ def main(args):
                             {'params': model.mlp_agg_di_t.parameters(), 'weight_decay': args.weight_decay, 'lr': args.lr},
                         ]
 
-        if args.linkgnn and args.model != 'simplink':
-            with open(base_dir+'config/search_space/LINKGNN.json') as f:
-                linkx_param = json.load(f)
-            args.linkx_weight_decay = linkx_param["wd"][best_param["linkx_wd"]]
-            args.linkx_lr = linkx_param["lr"][best_param["linkx_lr"]]
-            # args.linkx_hidden = param["hidden"][trial.suggest_int("linkx_hidden", 0, len(linkx_param["hidden"])-1, 1)]
-            args.linkx_dropout = linkx_param["dropout"][best_param["linkx_dropout"]]
-            args.num_edge_layers = linkx_param["num_edge_layers"][best_param["num_edge_layers"]]
-            args.num_node_layers = linkx_param["num_node_layers"][best_param["num_node_layers"]]
-            args.linkx_layers = linkx_param["layers"][best_param["linkx_layers"]]
-            args.linkgnn_wd_att = linkx_param["linkgnn_wd_att"][best_param["linkgnn_wd_att"]]
-            # print(args.weight_decay,args.lr,args.dropout, args.num_edge_layers, args.num_node_layers, args.layers)
-            model = LINKGNN(args, GNN_undi, GNN_di, GNN_di_t).to(device)
-            optimizer_sett = optimizer_sett + [{'params': model.mlpA.parameters(), 'weight_decay': args.linkx_weight_decay, 'lr': args.linkx_lr},
-                                               {'params': model.mlpA_di.parameters(), 'weight_decay': args.linkx_weight_decay, 'lr': args.linkx_lr},
-                                               {'params': model.mlpA_di_t.parameters(), 'weight_decay': args.linkx_weight_decay, 'lr': args.linkx_lr},
-                                               {'params': model.mlpX.parameters(), 'weight_decay': args.linkx_weight_decay, 'lr': args.linkx_lr},
-                                               # {'params': model.W.parameters(), 'weight_decay': args.linkx_weight_decay, 'lr': args.linkx_lr},
-                                               {'params': model.att, 'weight_decay': args.linkgnn_wd_att, 'lr': 0.01},
-                                               {'params': model.mlp_final.parameters(), 'weight_decay': args.linkx_weight_decay, 'lr': args.linkx_lr}]
-
         if args.adam:
             optimizer = optim.Adam(optimizer_sett)
         else:
             optimizer = optim.AdamW(optimizer_sett)
         t_start = time.time()
-        # res_dic["val_acc"], best, res_dic["best_epoch"], best_model, res_dic["train_acc"], res_dic["epochs_stopped"] 
         res_dic = train_step(model,optimizer)
         res_dic["train_time"] = time.time()-t_start
         res_dic["preprocess_time"] = time_preprocess
 
-        # test_num = test_data[0][0].shape[0]
-        # test_num = test_labels.shape[0]
-        # test_data = [mat.to(device) for mat in test_data[:total_filt]]
         torch.cuda.empty_cache()
         if args.test:
             list_loss_test = []
@@ -1089,9 +981,9 @@ def main(args):
 
 
         res_dic.pop('best_model')
-        if not os.path.exists(base_dir+"experiments/result_optuna/"+args.dataset):
-            os.mkdir(base_dir+"experiments/result_optuna/"+args.dataset)
-        with open(base_dir+"experiments/result_optuna/"+args.dataset+"/"+linkgnn_flag+args.model+ablation_tag+"_budget"+str(args.label_budget)+"_seed"+str(seed)+'.json','w') as f:
+        if not os.path.exists(base_dir+"experiments/"+args.dataset):
+            os.mkdir(base_dir+"experiments/"+args.dataset)
+        with open(base_dir+"experiments/"+args.dataset+"/"+args.model+ablation_tag+"_seed"+str(seed)+'.json','w') as f:
             json.dump(res_dic, f, ensure_ascii=False, indent=4) 
         print("Train cost: {:.4f}s".format(res_dic["train_time"]))
         print('Load {}th epoch'.format(res_dic["best_epoch"]))
@@ -1102,7 +994,7 @@ def main(args):
 if __name__ == '__main__':
 # Settings
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model',type=str,default='simplink',help='Model')
+    parser.add_argument('--model',type=str,default='A2DUG',help='Model')
     parser.add_argument('--dataset',type=str,default='flickr',help='Dataset')
     parser.add_argument('--seed', type=int, default=100, help='Random seed.')
     
@@ -1165,21 +1057,15 @@ if __name__ == '__main__':
                         help='If true, a given adjacency matrix is handled as a directed graph.')
     
 ## hardware ##
-    parser.add_argument('--cuda', type=int, default=1,
+    parser.add_argument('--cuda', type=int, default=0,
                         help='GPU ID')
     
 ## train/tuning ##
     parser.add_argument('--optuna', action='store_true')
     parser.add_argument('--test', type=bool, default=True)
-    parser.add_argument('--num_restart', type=int, default=5,
-                        help='Number of trials')
     parser.add_argument('--adam', action='store_true')
-    parser.add_argument('--label_budget', type=int, default=0, help='label budget for each class.')
     
 ## ablation study ##
-    parser.add_argument('--agg',type=str,default='concat',help='aggregation')
-    parser.add_argument('--linkgnn', action='store_true') 
-    parser.add_argument('--wo_att', action='store_true')
     parser.add_argument('--wo_mlp', action='store_true')
     parser.add_argument('--wo_adj', action='store_true')
     parser.add_argument('--wo_agg', action='store_true')

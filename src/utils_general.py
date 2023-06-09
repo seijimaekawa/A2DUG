@@ -1,15 +1,17 @@
-from sklearn.metrics import classification_report, roc_auc_score
-import torch
-import torch.nn.functional as F
-import torch_sparse as ts
 import numpy as np
 import scipy.sparse as sp
 import random
-from dataset_utils import *
-from torch_geometric.utils import to_undirected, sort_edge_index
+from sklearn.metrics import classification_report, roc_auc_score
 import sys
 import os
 import pickle as pkl
+
+import torch
+import torch.nn.functional as F
+import torch_sparse as ts
+from torch_geometric.utils import to_undirected, sort_edge_index
+
+from dataset_utils import *
 
 sys.setrecursionlimit(99999)
 
@@ -88,7 +90,7 @@ def load_npz_dataset(file_name):
             'labels': labels
         }
         return graph
-    
+
 def sample_per_class(random_state, labels, num_examples_per_class, forbidden_indices=None):
     num_samples = labels.shape[0]
     num_classes = labels.max()+1
@@ -106,7 +108,6 @@ def sample_per_class(random_state, labels, num_examples_per_class, forbidden_ind
         [random_state.choice(sample_indices_per_class[class_index], num_examples_per_class, replace=False)
          for class_index in range(len(sample_indices_per_class))
          ])
-
 
 def get_train_val_test_split(random_state,
                              labels,
@@ -184,10 +185,6 @@ def train_test_split(labels, seed, train_examples_per_class=None, val_examples_p
     train_indices, val_indices, test_indices = get_train_val_test_split(
         random_state, labels, train_examples_per_class, val_examples_per_class, test_examples_per_class, train_size, val_size, test_size)
 
-    #print('number of training: {}'.format(len(train_indices)))
-    #print('number of validation: {}'.format(len(val_indices)))
-    #print('number of testing: {}'.format(len(test_indices)))
-
     train_mask = np.zeros((labels.shape[0], 1), dtype=int)
     train_mask[train_indices, 0] = 1
     train_mask = np.squeeze(train_mask, 1)
@@ -202,66 +199,6 @@ def train_test_split(labels, seed, train_examples_per_class=None, val_examples_p
     mask['valid'] = torch.tensor(val_mask)
     mask['test'] = torch.tensor(test_mask)
     return mask
-
-def extract_few_labels(label_budget, train_data, valid_data, test_data, train_labels, valid_labels, test_labels, num_labels, smallest_class_threshold=3):
-    too_small_class = set()
-    if label_budget > 0:
-        few_train = torch.tensor([], dtype=torch.int64)
-        for l in range(num_labels):
-            tmp_class_label = torch.flatten((train_labels==l).nonzero())
-            # try:
-            # print(len(tmp_class_label))
-            if len(tmp_class_label) < smallest_class_threshold or len(tmp_class_label) < label_budget: ## if a class is smaller than a user-specified threshold, then it will be removed.
-                too_small_class.add(l)
-            else:
-                tmp_labels = torch.tensor(np.random.choice(tmp_class_label, label_budget, replace=False), dtype=torch.int64)
-                # print(tmp_labels)
-                few_train = torch.concat([few_train,tmp_labels], axis=0)
-
-        train_labels = train_labels[few_train]
-        for i in range(len(train_data)):
-            train_data[i] = train_data[i][few_train]#.to(device)
-    # print(few_train)
-    ## re-ordering classes
-    class_order_dic = dict()
-    all_class = set(range(num_labels))
-    remaining_class = all_class-too_small_class
-    for ind, l in enumerate(sorted(list(remaining_class))):
-        class_order_dic[l] = ind
-    num_few_labels = len(remaining_class)
-    print(too_small_class)
-    print("number of classes:", num_few_labels)
-        
-    # tmp_train_labels.append(original_train[few_train].reshape(-1).long())
-
-    valid_wo_small = torch.tensor([], dtype=torch.int64)
-    test_wo_small = torch.tensor([], dtype=torch.int64)
-    for l in range(len(all_class)):
-        if l in too_small_class:
-            continue
-        else:
-            tmp_class_val = torch.flatten((valid_labels==l).nonzero())
-            valid_wo_small = torch.concat([valid_wo_small,tmp_class_val], axis=0)
-            tmp_class_test = torch.flatten((test_labels==l).nonzero())
-            test_wo_small = torch.concat([test_wo_small,tmp_class_test], axis=0)
-            
-    for i in range(len(valid_data)):
-        valid_data[i] = valid_data[i][valid_wo_small]
-    for i in range(len(test_data)):
-        test_data[i] = test_data[i][test_wo_small]
-
-    def re_order(in_labels, class_order_dic):
-        in_labels = in_labels.numpy()
-        for i in range(len(in_labels)):
-            in_labels[i] = class_order_dic[in_labels[i]]
-        return torch.tensor(in_labels)
-    train_labels = re_order(train_labels, class_order_dic)
-    valid_labels = re_order(valid_labels[valid_wo_small], class_order_dic)
-    test_labels = re_order(test_labels[test_wo_small], class_order_dic)
-    
-    return train_data, valid_data, test_data, train_labels, valid_labels, test_labels, num_few_labels
-
-
     
 def load_graph(args, data_root, seed=100):
     from ogb.nodeproppred.dataset_pyg import PygNodePropPredDataset
@@ -399,33 +336,18 @@ def load_precomp(args, precomp_flag, data_path, seed=100):
         filters = ["adjacency"]
     elif args.model == "FSGNN":
         filters = ["adjacency", "exact1hop"]
-    elif args.model == "simplink":
+    elif args.model == "A2DUG":
         filters = ["adjacency","exact1hop","adjacency_di","exact1hop_di","adjacency_di_t","exact1hop_di_t"]
-    args.inductive = False
     
     # if not args.optuna:
     for filt in filters:
         args.filter = filt
         process_spmm.main(args, seed)
-        # args.filter = "adjacency"
-        # args.inductive = False
-        # process_spmm.main(args)
-        # if args.model == "FSGNN":
-        #     args.filter = "exact1hop"
-        #     process_spmm.main(args)
-
-        # if args.dataset in ["flickr", "reddit"]:
-        #     args.filter = "adjacency"
-        #     args.inductive = True
-        #     process_spmm.main(args)
-        #     if args.model == "FSGNN":
-        #         args.filter = "exact1hop"
-        #         process_spmm.main(args)
-            
+    
     ### Data Load ###
     # Load node features used for input model #
-    if args.model in ["simplink","FSGNN","JKnet_LC","MLP"]:
-        if args.model in ["simplink"]:
+    if args.model in ["A2DUG","FSGNN","JKnet_LC","MLP"]:
+        if args.model in ["A2DUG"]:
             # filters = ["adjacency", "exact1hop"]
             filters = ["adjacency","exact1hop","adjacency_di","exact1hop_di","adjacency_di_t","exact1hop_di_t"]
         elif args.model == "FSGNN":
@@ -436,7 +358,7 @@ def load_precomp(args, precomp_flag, data_path, seed=100):
             filters = []
         # training data
         train_data = []
-        if args.model != "simplink":
+        if args.model != "A2DUG":
             with open(data_path+"/feature_training_"+str(seed)+".pickle","rb") as fopen:
                 train_data.append(pkl.load(fopen))
         for filt in filters:
@@ -445,7 +367,7 @@ def load_precomp(args, precomp_flag, data_path, seed=100):
                     train_data.append(pkl.load(fopen))
         # validation data
         valid_data = []
-        if args.model != "simplink":
+        if args.model != "A2DUG":
             with open(data_path+"/feature_validation_"+str(seed)+".pickle","rb") as fopen:
                 valid_data.append(pkl.load(fopen))
         for filt in filters:
@@ -454,7 +376,7 @@ def load_precomp(args, precomp_flag, data_path, seed=100):
                     valid_data.append(pkl.load(fopen))
         # test data
         test_data = []
-        if args.model != "simplink":
+        if args.model != "A2DUG":
             with open(data_path+"/feature_test_"+str(seed)+".pickle","rb") as fopen:
                 test_data.append(pkl.load(fopen))
         for filt in filters:
@@ -471,244 +393,10 @@ def load_precomp(args, precomp_flag, data_path, seed=100):
         # test data
         with open(data_path+"/adjacency_2_test_"+str(seed)+".pickle","rb") as fopen:
             test_data=[pkl.load(fopen)]
-    # elif args.model == "GPRGNN_LC3" or args.model == "GPRGNN_LC":
-    #     # training data
-    #     train_data = []
-    #     with open(data_path+"/feature_training_"+str(seed)+".pickle","rb") as fopen:
-    #         train_data.append(pkl.load(fopen))
-    #     for i in range(1,args.layer+1):
-    #         with open(data_path+"/adjacency_"+str(i)+"_training_"+str(seed)+".pickle","rb") as fopen:
-    #             train_data.append(pkl.load(fopen))
-    #     # validation data
-    #     valid_data = []
-    #     with open(data_path+"/feature_validation_"+str(seed)+".pickle","rb") as fopen:
-    #         valid_data.append(pkl.load(fopen))
-    #     for i in range(1,args.layer+1):
-    #         with open(data_path+"/adjacency_"+str(i)+"_validation_"+str(seed)+".pickle","rb") as fopen:
-    #             valid_data.append(pkl.load(fopen))
-    #     # test data
-    #     test_data = []
-    #     with open(data_path+"/feature_test_"+str(seed)+".pickle","rb") as fopen:
-    #         test_data.append(pkl.load(fopen))
-    #     for i in range(1,args.layer+1):
-    #         with open(data_path+"/adjacency_"+str(i)+"_test_"+str(seed)+".pickle","rb") as fopen:
-    #             test_data.append(pkl.load(fopen))
                 
     with open(data_path+"/labels_"+str(seed)+".pickle","rb") as fopen:
         split_idx, label = pkl.load(fopen)
     return train_data, valid_data, test_data, split_idx, label
-
-def extract_few_labels(label_budget, train_data, valid_data, test_data, train_labels, valid_labels, test_labels, num_labels, smallest_class_threshold=3):
-    too_small_class = set()
-    if label_budget > 0:
-        few_train = torch.tensor([], dtype=torch.int64)
-        for l in range(num_labels):
-            tmp_class_label = torch.flatten((train_labels==l).nonzero())
-            # try:
-            # print(len(tmp_class_label))
-            if len(tmp_class_label) < smallest_class_threshold or len(tmp_class_label) < label_budget: ## if a class is smaller than a user-specified threshold, then it will be removed.
-                too_small_class.add(l)
-            else:
-                tmp_labels = torch.tensor(np.random.choice(tmp_class_label, label_budget, replace=False), dtype=torch.int64)
-                # print(tmp_labels)
-                few_train = torch.concat([few_train,tmp_labels], axis=0)
-
-        train_labels = train_labels[few_train]
-        for i in range(len(train_data)):
-            train_data[i] = train_data[i][few_train]#.to(device)
-    # print(few_train)
-    ## re-ordering classes
-    class_order_dic = dict()
-    all_class = set(range(num_labels))
-    remaining_class = all_class-too_small_class
-    for ind, l in enumerate(sorted(list(remaining_class))):
-        class_order_dic[l] = ind
-    num_few_labels = len(remaining_class)
-    print(too_small_class)
-    print("number of classes:", num_few_labels)
-        
-    # tmp_train_labels.append(original_train[few_train].reshape(-1).long())
-
-    valid_wo_small = torch.tensor([], dtype=torch.int64)
-    test_wo_small = torch.tensor([], dtype=torch.int64)
-    for l in range(len(all_class)):
-        if l in too_small_class:
-            continue
-        else:
-            tmp_class_val = torch.flatten((valid_labels==l).nonzero())
-            valid_wo_small = torch.concat([valid_wo_small,tmp_class_val], axis=0)
-            tmp_class_test = torch.flatten((test_labels==l).nonzero())
-            test_wo_small = torch.concat([test_wo_small,tmp_class_test], axis=0)
-            
-    for i in range(len(valid_data)):
-        valid_data[i] = valid_data[i][valid_wo_small]
-    for i in range(len(test_data)):
-        test_data[i] = test_data[i][test_wo_small]
-
-    def re_order(in_labels, class_order_dic):
-        in_labels = in_labels.numpy()
-        for i in range(len(in_labels)):
-            in_labels[i] = class_order_dic[in_labels[i]]
-        return torch.tensor(in_labels)
-    train_labels = re_order(train_labels, class_order_dic)
-    valid_labels = re_order(valid_labels[valid_wo_small], class_order_dic)
-    test_labels = re_order(test_labels[test_wo_small], class_order_dic)
-    
-    return train_data, valid_data, test_data, train_labels, valid_labels, test_labels, num_few_labels
-
-
-def load_precomp_augment(args, precomp_flag, data_path, sampling_ratio_list, few_train=None):
-    import process_spmm_augment as process_spmm
-    import pickle as pkl
-    if precomp_flag == False:
-        if args.model == "MLP":
-            args.layer = 0
-        args.filter = "adjacency"
-        args.inductive = False
-        for sampling_ratio in sampling_ratio_list:
-            for ind in range(args.num_view):
-                process_spmm.main(args, sampling_ratio=sampling_ratio, ind=ind)
-        if args.model == "FSGNN":
-            args.filter = "exact1hop"
-            for sampling_ratio in sampling_ratio_list:
-                for ind in range(args.num_view):
-                    process_spmm.main(args, sampling_ratio=sampling_ratio, ind=ind)
-
-        if args.dataset in ["flickr", "reddit"]:
-            args.filter = "adjacency"
-            args.inductive = True
-            for sampling_ratio in sampling_ratio_list:
-                for ind in range(args.num_view):
-                    process_spmm.main(args, sampling_ratio=sampling_ratio, ind=ind)
-            if args.model == "FSGNN":
-                args.filter = "exact1hop"
-                for sampling_ratio in sampling_ratio_list:
-                    for ind in range(args.num_view):
-                        process_spmm.main(args, sampling_ratio=sampling_ratio, ind=ind)
-                
-    if args.model == "FSGNN":
-        filters = ["adjacency", "exact1hop"]
-        layers = range(1, args.layer+1)
-    elif args.model in ["JKnet_LC", "GPRGNN_LC", "GPRGNN_LC3"]:
-        filters = ["adjacency"]
-        layers = range(1, args.layer+1)
-    else:
-        filters = ["adjacency"]
-        layers = [2]
-    # training data
-    def load_precomputed_data(data_tag, filters, layers, sampling_ratio_list):
-        data_list = []
-        num_view = args.num_view
-        # with open(data_path+"/feature_"+data_tag+".pickle","rb") as fopen:
-        #     feature_pickle = pickle.load(fopen)
-        #     if data_tag == "training":
-        #         feature_pickle = feature_pickle[few_train]
-        # for sampling_ratio in sampling_ratio_list:
-        #     for ind in range(args.num_view):
-        #         if sampling_ratio == 1 and ind > 0:
-        #             continue
-        #         tmp_pickle.append(feature_pickle)
-        # data_list.append(torch.concat(tmp_pickle))
-        if data_tag != "training":
-            sampling_ratio_list = [1]
-            num_view = 1
-        for sampling_ratio in sampling_ratio_list:
-            for ind in range(num_view):
-                if sampling_ratio != 1:
-                    sampling_tag = "_" + str(sampling_ratio) + "_" + str(ind)
-                else:
-                    if ind > 0:
-                        continue
-                    sampling_tag = ""
-                    
-                tmp_pickle = []
-                with open(data_path+"/feature_"+data_tag+".pickle","rb") as fopen:
-                    feature_pickle = pkl.load(fopen)
-                # if data_tag == "training":
-                #     feature_pickle = feature_pickle[few_train]
-                tmp_pickle.append(feature_pickle)
-                
-                for filt in filters:
-                    for i in layers:
-                        with open(data_path+"/"+filt+"_"+str(i)+sampling_tag+"_"+data_tag+".pickle","rb") as fopen:
-                            # if data_tag == "training":
-                            #     tmp = pickle.load(fopen)[few_train]
-                            # else:
-                            tmp = pkl.load(fopen)
-                        tmp_pickle.append(tmp)    
-                # data_list.append(torch.concat(tmp_pickle))
-                data_list.append(tmp_pickle)
-        return data_list
-
-    train_data = load_precomputed_data("training", filters, layers, sampling_ratio_list)
-    print(len(train_data[0]), train_data[0][0].shape)
-    valid_data = load_precomputed_data("validation", filters, layers, sampling_ratio_list)[0]
-    test_data = load_precomputed_data("test", filters, layers, sampling_ratio_list)[0]
-    
-    with open(data_path+"/labels.pickle","rb") as fopen:
-        labels = pkl.load(fopen)
-        
-    return train_data, valid_data, test_data, labels
-
-def extract_few_labels_augment(label_budget, train_data, valid_data, test_data, train_labels, valid_labels, test_labels, num_labels, smallest_class_threshold=3):
-    too_small_class = set()
-    if label_budget > 0:
-        few_train = torch.tensor([], dtype=torch.int64)
-        for l in range(num_labels):
-            tmp_class_label = torch.flatten((train_labels==l).nonzero())
-            # try:
-            # print(max(tmp_class_label))
-            if len(tmp_class_label) < smallest_class_threshold or len(tmp_class_label) < label_budget: ## if a class is smaller than a user-specified threshold, then it will be removed.
-                too_small_class.add(l)
-            else:
-                tmp_labels = torch.tensor(np.random.choice(tmp_class_label, label_budget, replace=False), dtype=torch.int64)
-                # print(tmp_labels)
-                few_train = torch.concat([few_train,tmp_labels], axis=0)
-
-        train_labels = train_labels[few_train]
-        for i in range(len(train_data)):
-            for j in range(len(train_data[i])):
-                train_data[i][j] = train_data[i][j][few_train]#.to(device)
-    # print(few_train)
-    ## re-ordering classes
-    class_order_dic = dict()
-    all_class = set(range(num_labels))
-    remaining_class = all_class-too_small_class
-    for ind, l in enumerate(sorted(list(remaining_class))):
-        class_order_dic[l] = ind
-    num_few_labels = len(remaining_class)
-    print(too_small_class)
-    print("number of classes:", num_few_labels)
-        
-    # tmp_train_labels.append(original_train[few_train].reshape(-1).long())
-
-    valid_wo_small = torch.tensor([], dtype=torch.int64)
-    test_wo_small = torch.tensor([], dtype=torch.int64)
-    for l in range(len(all_class)):
-        if l in too_small_class:
-            continue
-        else:
-            tmp_class_val = torch.flatten((valid_labels==l).nonzero())
-            valid_wo_small = torch.concat([valid_wo_small,tmp_class_val], axis=0)
-            tmp_class_test = torch.flatten((test_labels==l).nonzero())
-            test_wo_small = torch.concat([test_wo_small,tmp_class_test], axis=0)
-            
-    # print("max test:", max(test_wo_small))
-    for i in range(len(valid_data)):
-        valid_data[i] = valid_data[i][valid_wo_small]
-    for i in range(len(test_data)):
-        test_data[i] = test_data[i][test_wo_small]
-
-    def re_order(in_labels, class_order_dic):
-        in_labels = in_labels.numpy()
-        for i in range(len(in_labels)):
-            in_labels[i] = class_order_dic[in_labels[i]]
-        return torch.tensor(in_labels)
-    train_labels = re_order(train_labels, class_order_dic)
-    valid_labels = re_order(valid_labels[valid_wo_small], class_order_dic)
-    test_labels = re_order(test_labels[test_wo_small], class_order_dic)
-    
-    return train_data, valid_data, test_data, train_labels, valid_labels, test_labels, num_few_labels
 
 
 def sparse_mx_to_torch_sparse_tensor(sparse_mx):

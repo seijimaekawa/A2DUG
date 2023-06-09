@@ -1,0 +1,5 @@
+{
+    "lr": 0,
+    "dropout": 0,
+    "num_filter": 2
+}

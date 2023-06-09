@@ -1,0 +1,6 @@
+{
+    "wd": 1,
+    "lr": 2,
+    "hidden": 3,
+    "num_edge_layers": 0
+}

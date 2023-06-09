@@ -1,0 +1,8 @@
+name: a2dug
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8
+  - pip

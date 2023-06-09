@@ -1,0 +1,7 @@
+{
+    "wd": 3,
+    "lr": 3,
+    "layer": 0,
+    "hidden": 4,
+    "dropout": 0
+}

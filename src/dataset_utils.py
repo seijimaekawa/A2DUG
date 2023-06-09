@@ -33,9 +33,8 @@ from torch_geometric.io import read_npz
 from ogb.nodeproppred.dataset_pyg import PygNodePropPredDataset
 from ogb.nodeproppred import NodePropPredDataset
 
-# data_root = '/home/maekawa/simpleGCN/FSGNN-main/large_data/dataset/'
-# data_root = '../dataset/'
-data_root = '/home/maekawa/class_imbalance/dataset/'
+from config import base_dir as data_root
+data_root += 'dataset/'
 
 import dgl
 from dgl import ops
@@ -328,50 +327,8 @@ class WebKB(InMemoryDataset):
 
 
 def DataLoader(name):
-    # assert name in ['cSBM_data_Aug_19_2020-13:06',
-    #                 'cSBM_data_Aug_18_2020-18:50',
-    #                 'cSBM_data_Aug_21_2020-10:06',
-    #                 'cSBM_data_Aug_19_2020-20:41',
-    #                 'cSBM_data_Aug_21_2020-11:04',
-    #                 'cSBM_data_Aug_21_2020-11:21',
-    #                 'cSBM_data_Sep_01_2020-14:15',
-    #                 'cSBM_data_Sep_01_2020-14:18',
-    #                 'cSBM_data_Sep_01_2020-14:19',
-    #                 'cSBM_data_Sep_01_2020-14:32',
-    #                 'cSBM_data_Sep_01_2020-14:22',
-    #                 'cSBM_data_Sep_01_2020-14:23',
-    #                 'cSBM_data_Sep_01_2020-14:27',
-    #                 'cSBM_data_Sep_01_2020-14:29',
-    #                 'Cora', 'Citeseer', 'PubMed',
-    #                 'Computers', 'Photo',
-    #                 'chameleon', 'film', 'squirrel',
-    #                 'Texas', 'Cornell']
-
-    # if name in ['cSBM_data_Aug_19_2020-13:06',
-    #             'cSBM_data_Aug_18_2020-18:50',
-    #             'cSBM_data_Aug_21_2020-10:06',
-    #             'cSBM_data_Aug_19_2020-20:41',
-    #             'cSBM_data_Aug_21_2020-11:04',
-    #             'cSBM_data_Aug_21_2020-11:21',
-    #             'cSBM_data_Sep_01_2020-14:15',
-    #             'cSBM_data_Sep_01_2020-14:18',
-    #             'cSBM_data_Sep_01_2020-14:19',
-    #             'cSBM_data_Sep_01_2020-14:32',
-    #             'cSBM_data_Sep_01_2020-14:22',
-    #             'cSBM_data_Sep_01_2020-14:23',
-    #             'cSBM_data_Sep_01_2020-14:27',
-    #             'cSBM_data_Sep_01_2020-14:29']:
-    # if 'cSBM_data' in name:
-    #     path = './data/'
-    #     dataset = dataset_ContextualSBM(path, name=name)
-    # else:
     name = name.lower()
-
-    if name in ['cora', 'citeseer', 'pubmed']:
-        # root_path = './'
-        # path = osp.join(root_path, 'data', name)
-        dataset = Planetoid(data_root+name+"/", name, transform=T.NormalizeFeatures())
-    elif name in ['computers', 'photo']:
+    if name in ['computers', 'photo']:
         # root_path = './'
         # path = osp.join(root_path, 'data', name)
         dataset = Amazon(data_root+name+"/", name, T.NormalizeFeatures())

@@ -1,0 +1,143 @@
+{
+    "tra_loss": 0.011751113459467888,
+    "val_loss": 1.4358787536621094,
+    "best_epoch": 64,
+    "val_result": {
+        "0.0": {
+            "precision": 0.5420560747663551,
+            "recall": 0.8055555555555556,
+            "f1-score": 0.64804469273743,
+            "support": 72
+        },
+        "1.0": {
+            "precision": 0.27450980392156865,
+            "recall": 0.2545454545454545,
+            "f1-score": 0.2641509433962264,
+            "support": 55
+        },
+        "2.0": {
+            "precision": 0.3020833333333333,
+            "recall": 0.4142857142857143,
+            "f1-score": 0.3493975903614458,
+            "support": 70
+        },
+        "3.0": {
+            "precision": 0.44,
+            "recall": 0.1774193548387097,
+            "f1-score": 0.2528735632183908,
+            "support": 62
+        },
+        "4.0": {
+            "precision": 0.5652173913043478,
+            "recall": 0.3023255813953488,
+            "f1-score": 0.39393939393939387,
+            "support": 43
+        },
+        "accuracy": 0.4139072847682119,
+        "macro avg": {
+            "precision": 0.4247733206651209,
+            "recall": 0.39082633212415663,
+            "f1-score": 0.38168123673057736,
+            "support": 302
+        },
+        "weighted avg": {
+            "precision": 0.4200538336367024,
+            "recall": 0.4139072847682119,
+            "f1-score": 0.39159902631828736,
+            "support": 302
+        }
+    },
+    "tra_result": {
+        "0.0": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 128
+        },
+        "1.0": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 51
+        },
+        "2.0": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 102
+        },
+        "3.0": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 73
+        },
+        "4.0": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 73
+        },
+        "accuracy": 1.0,
+        "macro avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 427
+        },
+        "weighted avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 427
+        }
+    },
+    "epoch": 104,
+    "train_time": 6.3801257610321045,
+    "preprocess_time": 0.38179898262023926,
+    "test_result": {
+        "0.0": {
+            "precision": 0.578125,
+            "recall": 0.8809523809523809,
+            "f1-score": 0.6981132075471698,
+            "support": 42
+        },
+        "1.0": {
+            "precision": 0.15789473684210525,
+            "recall": 0.10714285714285714,
+            "f1-score": 0.1276595744680851,
+            "support": 28
+        },
+        "2.0": {
+            "precision": 0.4473684210526316,
+            "recall": 0.4594594594594595,
+            "f1-score": 0.45333333333333337,
+            "support": 37
+        },
+        "3.0": {
+            "precision": 0.21739130434782608,
+            "recall": 0.1724137931034483,
+            "f1-score": 0.19230769230769232,
+            "support": 29
+        },
+        "4.0": {
+            "precision": 0.5882352941176471,
+            "recall": 0.4,
+            "f1-score": 0.4761904761904762,
+            "support": 25
+        },
+        "accuracy": 0.4472049689440994,
+        "macro avg": {
+            "precision": 0.397802951272042,
+            "recall": 0.4039936981316291,
+            "f1-score": 0.38952085676935133,
+            "support": 161
+        },
+        "weighted avg": {
+            "precision": 0.4115848719848102,
+            "recall": 0.4472049689440994,
+            "f1-score": 0.4170822429633903,
+            "support": 161
+        }
+    }
+}
