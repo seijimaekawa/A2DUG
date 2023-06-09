@@ -80,12 +80,12 @@ This framework allows users to use real-world datasets as follows:
   | ------------------------------------------------------- | ------- | ------- | ------- | ------- | ------- | ------- |
   | [chameleon-filtered](https://github.com/yandex-research/heterophilous-graphs)          | 890   | 13,584   |  8,904  |  2,325  |  5  | web page traffic
   | [squirrel-filtered](https://github.com/yandex-research/heterophilous-graphs)          | 2,223   | 65,718  |  47,138  |  2,089  |  5  | web page traffic
-  | [genius]()          | 421,961 | 984,979 | 922,868 | 12 | 2 | marked act.
-  | [ogbn-arxiv]() | 169,343 | 1,166,243 | 1,157,799 | 128 | 40 | research field
-  | [arxiv-year]()  | 169,343 | 1,166,243 | 1,157,799 | 128 | 5 | publication year
-  | [snap-patents]()  | 2,923,922 | 13,975,788 | 13,972,547 | 269 | 5 | time granted
-  | [pokec]() | 1,632,803 | 30,622,564 | 22,301,964 | 65 |  2 | gender
-  | [wiki]() | 1,925,342 | 303,434,860 | 242,605,360 | 600 | 5 | total page views
+  | [genius](https://github.com/CUAI/Non-Homophily-Large-Scale)          | 421,961 | 984,979 | 922,868 | 12 | 2 | marked act.
+  | [ogbn-arxiv](https://ogb.stanford.edu/) | 169,343 | 1,166,243 | 1,157,799 | 128 | 40 | research field
+  | [arxiv-year](https://github.com/CUAI/Non-Homophily-Large-Scale)  | 169,343 | 1,166,243 | 1,157,799 | 128 | 5 | publication year
+  | [snap-patents](https://github.com/CUAI/Non-Homophily-Large-Scale)  | 2,923,922 | 13,975,788 | 13,972,547 | 269 | 5 | time granted
+  | [pokec](https://github.com/CUAI/Non-Homophily-Large-Scale) | 1,632,803 | 30,622,564 | 22,301,964 | 65 |  2 | gender
+  | [wiki](https://github.com/CUAI/Non-Homophily-Large-Scale) | 1,925,342 | 303,434,860 | 242,605,360 | 600 | 5 | total page views
   <!-- | [Cora ml](https://github.com/kimiyoung/planetoid)        |   | 8,416   | 16,316   | 
   | [Citeseer](https://github.com/kimiyoung/planetoid)      | 3,327   | 4,715   | 
   | [Texas](https://openreview.net/forum?id=S1e2agrFvS)     | 183     | 295     |
