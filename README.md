@@ -42,6 +42,23 @@ python src/main.py --model A2DUG --dataset pokec --minibatch
 
 The code saves the experimental results into [`experiments/`](https://github.com/seijimaekawa/A2DUG/tree/main/experiments).
 
+## Edge Direction
+For methods that can input a graph as either directed or undirected (LINK, LINKX, and GloGNN++), you can specify `--directed` option as follows: 
+```
+python src/main.py --model LINKX --dataset arxiv-year --directed
+```
+If you do not specify the option, an input graph is used as undirected.
+
+## Ablation Study
+To reproduce the ablation study in the paper, you can run `A2DUG` with `--wo_direction`, `--wo_undirected`, `--wo_agg`, `--wo_adj`, or `--wo_transpose` as follows:
+```
+python src/main.py --model A2DUG --dataset arxiv-year --wo_directed
+python src/main.py --model A2DUG --dataset arxiv-year --wo_undirected
+python src/main.py --model A2DUG --dataset arxiv-year --wo_agg
+python src/main.py --model A2DUG --dataset arxiv-year --wo_adj
+python src/main.py --model A2DUG --dataset arxiv-year --wo_transpose
+```
+
 ## Hyperparameters
 ### Search Space
 The hyperparameter search space for each model is listed in [json files](https://github.com/seijimaekawa/A2DUG/tree/main/config/search_space).
