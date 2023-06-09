@@ -1067,10 +1067,10 @@ if __name__ == '__main__':
     
 ## ablation study ##
     parser.add_argument('--wo_mlp', action='store_true')
-    parser.add_argument('--wo_adj', action='store_true')
-    parser.add_argument('--wo_agg', action='store_true')
     parser.add_argument('--wo_directed', action='store_true')
     parser.add_argument('--wo_undirected', action='store_true')
+    parser.add_argument('--wo_agg', action='store_true')
+    parser.add_argument('--wo_adj', action='store_true')
     parser.add_argument('--wo_transpose', action='store_true')
 
     args = parser.parse_args()
