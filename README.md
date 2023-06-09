@@ -51,7 +51,7 @@ Also, we show the [best parameter sets](https://github.com/seijimaekawa/A2DUG/tr
 ### Running Hyper Parameter Search
 ```
 cd A2DUG
-python src/main.py --dataset A2DUG --dataset arxiv-year --optuna
+python src/main.py --model A2DUG --dataset arxiv-year --optuna
 ```
 
 The code loads the hyperparameter search space specified in the [json files](https://github.com/seijimaekawa/A2DUG/tree/main/config/search_space). After 100 runs, the code saves the best parameter set to the folder: [best parameter sets](https://github.com/seijimaekawa/A2DUG/tree/main/config/best_config_optuna). 
