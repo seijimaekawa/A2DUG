@@ -1,3 +1,5 @@
+.gitignore
+.DS_Store
 .vscode/
 src/__pycache__/
 name_changer.ipynb
