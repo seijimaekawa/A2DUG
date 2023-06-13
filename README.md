@@ -77,7 +77,7 @@ The code loads the hyperparameter search space specified in the [json files](htt
 
 This framework allows users to use real-world datasets as follows:
   | Dataset                                                 | Nodes | Edges | Undirected Edges | Attributes | Labels | Prediction Target 
-  | ------------------------------------------------------- | ------- | ------- | ------- | ------- | ------- | ------- |
+  | :------------------------------------------------------- | -------: | -------: | -------: | -------: | -------: | -------: |
   | [chameleon-filtered](https://github.com/yandex-research/heterophilous-graphs)          | 890   | 13,584   |  8,904  |  2,325  |  5  | web page traffic
   | [squirrel-filtered](https://github.com/yandex-research/heterophilous-graphs)          | 2,223   | 65,718  |  47,138  |  2,089  |  5  | web page traffic
   | [genius](https://github.com/CUAI/Non-Homophily-Large-Scale)          | 421,961 | 984,979 | 922,868 | 12 | 2 | marked act.
@@ -89,7 +89,7 @@ This framework allows users to use real-world datasets as follows:
 
   This framework also includes the datasets used in the experiments shown in the supplementary materials as follows:
   | Dataset                                                 | Nodes | Edges | Undirected Edges | Attributes | Labels | Prediction Target 
-  | ------------------------------------------------------- | ------- | ------- | ------- | ------- | ------- | ------- |
+  | :------------------------------------------------------- | -------: | -------: | -------: | -------: | -------: | -------: |
   | [cornell](http://www.cs.cmu.edu/afs/cs.cmu.edu/project/theo-11/www/wwkb/)   | 183    | 298  | 280    |  1,703  |  5  | web page catefogy 
   | [texas](http://www.cs.cmu.edu/afs/cs.cmu.edu/project/theo-11/www/wwkb/)     | 183    | 325  | 295     |  1,703  |  5  | web page catefogy
   | [wisconsin](http://www.cs.cmu.edu/afs/cs.cmu.edu/project/theo-11/www/wwkb/) | 251    |  515   | 466     |  1,703  |  5  | web page catefogy 
