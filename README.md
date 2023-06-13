@@ -93,8 +93,8 @@ This framework allows users to use real-world datasets as follows:
   | [cornell](http://www.cs.cmu.edu/afs/cs.cmu.edu/project/theo-11/www/wwkb/)   | 183    | 298  | 280    |  1,703  |  5  | web page catefogy 
   | [texas](http://www.cs.cmu.edu/afs/cs.cmu.edu/project/theo-11/www/wwkb/)     | 183    | 325  | 295     |  1,703  |  5  | web page catefogy
   | [wisconsin](http://www.cs.cmu.edu/afs/cs.cmu.edu/project/theo-11/www/wwkb/) | 251    |  515   | 466     |  1,703  |  5  | web page catefogy 
-  | [cora_ml](https://github.com/flyingtango/DiGCN/tree/main/code/data)        |  2,995  | 8,416   | 8,158   |   2,879  |  7  |  research field
   | [citeseer](https://github.com/flyingtango/DiGCN/tree/main/code/data)      | 3,327   | 4,715   |  4,660  |  3,703  |  6  |  research field
+  | [cora_ml](https://github.com/flyingtango/DiGCN/tree/main/code/data)        |  2,995  | 8,416   | 8,158   |   2,879  |  7  |  research field
 
 By changing `--dataset [dataset name]`, users can choose a dataset. 
 
