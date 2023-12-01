@@ -99,7 +99,7 @@ This framework allows users to use real-world datasets as follows:
 By changing `--dataset [dataset name]`, users can choose a dataset. 
 
 ## Edge homophily ratio
-We provide a [Jupyter notebook](https://github.com/seijimaekawa/A2DUG/blob/main/src/edge_homo.ipynb) for calculating ege homophily ratios. 
+We provide a [Jupyter notebook](https://github.com/seijimaekawa/A2DUG/blob/main/src/edge_homo.ipynb) for calculating edge homophily ratios. 
 
 # Hardware
 We assume that all experiments are conducted with a single NVIDIA A100-PCIE-40GB. 
