@@ -1,5 +1,5 @@
 # A2DUG
-This repository is the codebase of a paper "[Why Using Either Aggregated Features or Adjacency Lists in Directed or Undirected Graph? Empirical Study and Simple Classification Method](https://arxiv.org/abs/2306.08274)". 
+This repository is the codebase of a paper "[A Simple and Scalable Graph Neural Network for Large Directed Graphs](https://arxiv.org/abs/2306.08274)". 
 
 # Supported Models
 
