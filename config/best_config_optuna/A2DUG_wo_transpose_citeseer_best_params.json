@@ -1,0 +1,15 @@
+{
+    "wd": 1,
+    "A_wd": 0,
+    "X_wd": 1,
+    "lr": 2,
+    "A_lr": 1,
+    "X_lr": 0,
+    "dropout": 1,
+    "num_edge_layers": 1,
+    "num_node_layers": 0,
+    "num_agg_layers": 0,
+    "layers": 1,
+    "final_wd": 0,
+    "final_lr": 2
+}
